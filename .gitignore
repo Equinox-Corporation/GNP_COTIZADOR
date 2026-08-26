@@ -1,0 +1,5 @@
+config/.env.local
+datos/*.sqlite
+datos/*.sqlite-wal
+datos/*.sqlite-shm
+datos/pdf/

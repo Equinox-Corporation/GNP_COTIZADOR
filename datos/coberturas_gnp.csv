@@ -1,0 +1,168 @@
+grupo,paquete,cve_cobertura,nombre,tipo,sa_valor,sa_unidad,ded_valor,ded_unidad
+AUTO,AMPLIA,0000000893,Accidentes al Conductor,OPCIONAL,100000,Importe,N/A,N/A
+AUTO,LIMITADA,0000000893,Accidentes al Conductor,OPCIONAL,100000,Importe,N/A,N/A
+AUTO,PREMIUM,0000000893,Accidentes al Conductor,OPCIONAL,100000,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000000893,Accidentes al Conductor,OPCIONAL,100000,Importe,N/A,N/A
+AUTO,AMPLIA,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,LIMITADA,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,PREMIUM,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,AMPLIA TOTAL,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,AMPLIA,0000001414,Auto Sustituto,OPCIONAL,10,Días,N/A,N/A
+AUTO,AUTO ELITE,0000001414,Auto Sustituto,BASICA,10,Días,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001414,Auto Sustituto,OPCIONAL,10,Días,N/A,N/A
+AUTO,AMPLIA,0000001415,Auto Sustituto Plus,OPCIONAL,10,Días,N/A,N/A
+AUTO,PREMIUM,0000001415,Auto Sustituto Plus,BASICA,10,Días,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001415,Auto Sustituto Plus,OPCIONAL,10,Días,N/A,N/A
+AUTO,AMPLIA,0000001348,Ayuda para Pérdidas Totales,OPCIONAL,7500,Importe,N/A,N/A
+AUTO,LIMITADA,0000001348,Ayuda para Pérdidas Totales,OPCIONAL,7500,Importe,N/A,N/A
+AUTO,PREMIUM,0000001348,Ayuda para Pérdidas Totales,OPCIONAL,7500,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001348,Ayuda para Pérdidas Totales,OPCIONAL,7500,Importe,N/A,N/A
+AUTO,AMPLIA,0000001268,Club GNP,BASICA,Amparada,N/A,N/A,N/A
+AUTO,LIMITADA,0000001268,Club GNP,BASICA,Amparada,N/A,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000001268,Club GNP,BASICA,Amparada,N/A,N/A,N/A
+AUTO,PREMIUM,0000001268,Club GNP,BASICA,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001268,Club GNP,BASICA,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA,0000000891,Cristales,BASICA,Amparada,N/A,20,Porcentaje
+AUTO,PREMIUM,0000000891,Cristales,BASICA,Amparada,N/A,20,Porcentaje
+AUTO,AMPLIA TOTAL,0000000891,Cristales,BASICA,Amparada,N/A,20,Porcentaje
+AUTO,AMPLIA,0000001289,Daños Materiales Pérdida Parcial,BASICA,N/A,N/A,5,Porcentaje
+AUTO,PREMIUM,0000001289,Daños Materiales Pérdida Parcial,BASICA,N/A,N/A,5,Porcentaje
+AUTO,AMPLIA TOTAL,0000001289,Daños Materiales Pérdida Parcial,BASICA,N/A,N/A,5,Porcentaje
+AUTO,AMPLIA,0000001288,Daños Materiales Pérdida Total,BASICA,N/A,N/A,5,Porcentaje
+AUTO,PREMIUM,0000001288,Daños Materiales Pérdida Total,BASICA,N/A,N/A,5,Porcentaje
+AUTO,AMPLIA TOTAL,0000001288,Daños Materiales Pérdida Total,BASICA,N/A,N/A,5,Porcentaje
+AUTO,AMPLIA,0000000904,Extensión de Responsabilidad Civil,BASICA,3000000,Importe,N/A,N/A
+AUTO,LIMITADA,0000000904,Extensión de Responsabilidad Civil,BASICA,3000000,Importe,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000000904,Extensión de Responsabilidad Civil,BASICA,3000000,Importe,N/A,N/A
+AUTO,PREMIUM,0000000904,Extensión de Responsabilidad Civil,BASICA,3000000,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000000904,Extensión de Responsabilidad Civil,BASICA,3000000,Importe,N/A,N/A
+AUTO,AMPLIA,0000000906,Gastos Médicos Ocupantes,BASICA,200000,Importe,N/A,N/A
+AUTO,LIMITADA,0000000906,Gastos Médicos Ocupantes,BASICA,200000,Importe,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000000906,Gastos Médicos Ocupantes,BASICA,200000,Importe,N/A,N/A
+AUTO,PREMIUM,0000000906,Gastos Médicos Ocupantes,BASICA,200000,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000000906,Gastos Médicos Ocupantes,BASICA,200000,Importe,N/A,N/A
+AUTO,AMPLIA,0000000909,Protección Auxiliar,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,PREMIUM,0000000909,Protección Auxiliar,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000000909,Protección Auxiliar,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,AMPLIA,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+AUTO,LIMITADA,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+AUTO,PREMIUM,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+AUTO,AMPLIA,0000001453,Responsabilidad Civil Ocupantes,OPCIONAL,3000000,Importe,N/A,N/A
+AUTO,LIMITADA,0000001453,Responsabilidad Civil Ocupantes,OPCIONAL,3000000,Importe,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000001453,Responsabilidad Civil Ocupantes,OPCIONAL,3000000,Importe,N/A,N/A
+AUTO,PREMIUM,0000001453,Responsabilidad Civil Ocupantes,OPCIONAL,3000000,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001453,Responsabilidad Civil Ocupantes,OPCIONAL,3000000,Importe,N/A,N/A
+AUTO,AMPLIA,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+AUTO,LIMITADA,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+AUTO,PREMIUM,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+AUTO,AMPLIA,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+AUTO,LIMITADA,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+AUTO,PREMIUM,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+AUTO,AMPLIA,0000000916,Robo Total,BASICA,N/A,N/A,10,Porcentaje
+AUTO,LIMITADA,0000000916,Robo Total,BASICA,N/A,N/A,10,Porcentaje
+AUTO,PREMIUM,0000000916,Robo Total,BASICA,N/A,N/A,10,Porcentaje
+AUTO,AMPLIA TOTAL,0000000916,Robo Total,BASICA,N/A,N/A,10,Porcentaje
+AUTO,AMPLIA,0000001470,Ayuda Llantas/Rines,OPCIONAL,25000,Importe,25,Porcentaje
+AUTO,PREMIUM,0000001470,Ayuda Llantas/Rines,BASICA,25000,Importe,25,Porcentaje
+AUTO,AUTO ELITE,0000001470,Ayuda Llantas/Rines,BASICA,25000,Importe,25,Porcentaje
+AUTO,AMPLIA TOTAL,0000001470,Ayuda Llantas/Rines,OPCIONAL,25000,Importe,25,Porcentaje
+AUTO,AMPLIA,0000001471,Llaves de Repuesto,OPCIONAL,5000,Importe,20,Porcentaje
+AUTO,LIMITADA,0000001471,Llaves de Repuesto,OPCIONAL,5000,Importe,20,Porcentaje
+AUTO,PREMIUM,0000001471,Llaves de Repuesto,BASICA,5000,Importe,20,Porcentaje
+AUTO,AUTO ELITE,0000001471,Llaves de Repuesto,BASICA,5000,Importe,20,Porcentaje
+AUTO,AMPLIA TOTAL,0000001471,Llaves de Repuesto,OPCIONAL,5000,Importe,20,Porcentaje
+AUTO,AMPLIA,0000001472,Pago Cero,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,PREMIUM,0000001472,Pago Cero,BASICA,Amparada,Importe,N/A,N/A
+AUTO,AUTO ELITE,0000001472,Pago Cero,BASICA,Amparada,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001472,Pago Cero,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,AMPLIA,0000001473,Siempre en Agencia,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,PREMIUM,0000001473,Siempre en Agencia,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001473,Siempre en Agencia,OPCIONAL,Amparada,Importe,N/A,N/A
+AUTO,AMPLIA,0000001461,Robo Parcial  *,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,LIMITADA,0000001461,Robo Parcial  *,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,AMPLIA TOTAL,0000001461,Robo Parcial  *,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,AMPLIA,0000001462,Robo Parcial Plus *,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,LIMITADA,0000001462,Robo Parcial Plus *,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,PREMIUM,0000001462,Robo Parcial Plus *,BASICA,Amparada,Importe,25,Porcentaje
+AUTO,AMPLIA TOTAL,0000001462,Robo Parcial Plus *,OPCIONAL,Amparada,Importe,25,Porcentaje
+AUTO,AMPLIA,0000001564,Conductor Protegido,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,LIMITADA,0000001564,Conductor Protegido,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,RESPONSABILIDAD CIVIL,0000001564,Conductor Protegido,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,PREMIUM,0000001564,Conductor Protegido,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001564,Conductor Protegido,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,LIMITADA,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,PREMIUM,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA,0000001689,Eliminacion de Deducible en Perdidas Parciales,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,PREMIUM,0000001689,Eliminacion de Deducible en Perdidas Parciales,OPCIONAL,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA TOTAL,0000001689,Eliminacion de Deducible en Perdidas Parciales,BASICA,Amparada,N/A,N/A,N/A
+AUTO,AMPLIA,0000001690,Robo Articulos Personales Autos,OPCIONAL,10000,Importe,10,UMAS
+AUTO,PREMIUM,0000001690,Robo Articulos Personales Autos,OPCIONAL,10000,Importe,10,UMAS
+AUTO,AMPLIA TOTAL,0000001690,Robo Articulos Personales Autos,OPCIONAL,10000,Importe,10,UMAS
+MOTO,AMPLIA,0000000893,Accidentes al Conductor,BASICA,50000,Importe,N/A,N/A
+MOTO,LIMITADA,0000000893,Accidentes al Conductor,BASICA,50000,Importe,N/A,N/A
+MOTO,RESPONSABILIDAD CIVIL,0000000893,Accidentes al Conductor,BASICA,50000,Importe,N/A,N/A
+MOTO,PREMIUM,0000000893,Accidentes al Conductor,BASICA,50000,Importe,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000000893,Accidentes al Conductor,BASICA,50000,Importe,N/A,N/A
+MOTO,AMPLIA,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+MOTO,LIMITADA,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+MOTO,PREMIUM,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+MOTO,AMPLIA FLEXIBLE,0000000894,Adap. Conversiones y Equipo Esp.,OPCIONAL,Amparada,Importe,25,Porcentaje
+MOTO,AMPLIA,0000001289,Daños Materiales Pérdida Parcial,BASICA,N/A,N/A,10,Porcentaje
+MOTO,PREMIUM,0000001289,Daños Materiales Pérdida Parcial,BASICA,N/A,N/A,10,Porcentaje
+MOTO,AMPLIA,0000001288,Daños Materiales Pérdida Total,BASICA,N/A,N/A,10,Porcentaje
+MOTO,PREMIUM,0000001288,Daños Materiales Pérdida Total,BASICA,N/A,N/A,10,Porcentaje
+MOTO,AMPLIA FLEXIBLE,0000001288,Daños Materiales Pérdida Total,BASICA,N/A,N/A,10,Porcentaje
+MOTO,AMPLIA,0000000904,Extensión de Responsabilidad Civil,BASICA,3000000,Importe,N/A,N/A
+MOTO,PREMIUM,0000000904,Extensión de Responsabilidad Civil,BASICA,3000000,Importe,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000000904,Extensión de Responsabilidad Civil,OPCIONAL,3000000,Importe,N/A,N/A
+MOTO,AMPLIA,0000000906,Gastos Médicos Ocupantes,BASICA,50000,Importe,N/A,N/A
+MOTO,LIMITADA,0000000906,Gastos Médicos Ocupantes,BASICA,50000,Importe,N/A,N/A
+MOTO,RESPONSABILIDAD CIVIL,0000000906,Gastos Médicos Ocupantes,BASICA,50000,Importe,N/A,N/A
+MOTO,PREMIUM,0000000906,Gastos Médicos Ocupantes,OPCIONAL,50000,Importe,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000000906,Gastos Médicos Ocupantes,BASICA,50000,Importe,N/A,N/A
+MOTO,AMPLIA,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+MOTO,LIMITADA,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+MOTO,RESPONSABILIDAD CIVIL,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+MOTO,PREMIUM,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000001285,Protección Legal,BASICA,3000000,Importe,N/A,N/A
+MOTO,AMPLIA,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+MOTO,LIMITADA,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+MOTO,RESPONSABILIDAD CIVIL,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+MOTO,PREMIUM,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000001273,Responsabilidad Civil por Daños a Terceros,BASICA,3000000,Importe,N/A,N/A
+MOTO,AMPLIA,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+MOTO,LIMITADA,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+MOTO,RESPONSABILIDAD CIVIL,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+MOTO,PREMIUM,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000001452,Responsabilidad Civil Fallecimiento,OPCIONAL,2000000,Importe,N/A,N/A
+MOTO,AMPLIA,0000000916,Robo Total,BASICA,N/A,N/A,20,Porcentaje
+MOTO,LIMITADA,0000000916,Robo Total,BASICA,N/A,N/A,20,Porcentaje
+MOTO,PREMIUM,0000000916,Robo Total,BASICA,N/A,N/A,20,Porcentaje
+MOTO,AMPLIA FLEXIBLE,0000000916,Robo Total,BASICA,N/A,N/A,20,Porcentaje
+MOTO,AMPLIA,0000001471,Llaves de Repuesto,OPCIONAL,5000,Importe,20,Porcentaje
+MOTO,PREMIUM,0000001471,Llaves de Repuesto,BASICA,5000,Importe,20,Porcentaje
+MOTO,AMPLIA FLEXIBLE,0000001471,Llaves de Repuesto,OPCIONAL,5000,Importe,20,Porcentaje
+MOTO,AMPLIA,0000001472,Pago Cero,OPCIONAL,Amparada,Importe,N/A,N/A
+MOTO,PREMIUM,0000001472,Pago Cero,BASICA,Amparada,Importe,N/A,N/A
+MOTO,AMPLIA,0000001564,Conductor Protegido,OPCIONAL,Amparada,N/A,N/A,N/A
+MOTO,PREMIUM,0000001564,Conductor Protegido,BASICA,Amparada,N/A,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000001564,Conductor Protegido,OPCIONAL,Amparada,N/A,N/A,N/A
+MOTO,AMPLIA,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+MOTO,LIMITADA,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+MOTO,PREMIUM,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000001465,Garantia Autos Financiamiento,OPCIONAL,Amparada,N/A,N/A,N/A
+MOTO,AMPLIA,0000001567,Asistencia Vial Moto,BASICA,Amparada,N/A,N/A,N/A
+MOTO,LIMITADA,0000001567,Asistencia Vial Moto,BASICA,Amparada,N/A,N/A,N/A
+MOTO,RESPONSABILIDAD CIVIL,0000001567,Asistencia Vial Moto,BASICA,Amparada,N/A,N/A,N/A
+MOTO,PREMIUM,0000001567,Asistencia Vial Moto,BASICA,Amparada,N/A,N/A,N/A
+MOTO,AMPLIA FLEXIBLE,0000001567,Asistencia Vial Moto,BASICA,Amparada,N/A,N/A,N/A
+MOTO,AMPLIA,0000001689,Eliminacion de Deducible en Perdidas Parciales,OPCIONAL,Amparada,N/A,N/A,N/A
+MOTO,AMPLIA,0000001688,Responsabilidad Civil por Daño Moral,OPCIONAL,3000000,Importe,N/A,N/A
