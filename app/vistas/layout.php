@@ -18,6 +18,7 @@
       <a href="<?= h(url('historial')) ?>"<?= ($ruta ?? '') === 'historial' ? ' class="activo"' : '' ?>>Historial</a>
       <?php if (Auth::esAdmin()): ?>
         <a href="<?= h(url('usuarios')) ?>"<?= ($ruta ?? '') === 'usuarios' ? ' class="activo"' : '' ?>>Usuarios</a>
+        <a href="<?= h(url('plantillas')) ?>"<?= ($ruta ?? '') === 'plantillas' ? ' class="activo"' : '' ?>>Paquetes propios</a>
       <?php endif; ?>
     </nav>
     <div class="sesion">

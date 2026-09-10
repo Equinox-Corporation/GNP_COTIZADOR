@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><ERROR><DESCRIPCION>La suma asegurada no aplica para la cobertura con clave 0000000906 (122053399).</DESCRIPCION><CLAVE>14</CLAVE><ORIGEN>cotizador-eot</ORIGEN><FECHA>2026-09-10T13:13:35.209-06:00</FECHA></ERROR>

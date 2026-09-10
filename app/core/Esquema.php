@@ -103,6 +103,22 @@ CREATE TABLE IF NOT EXISTS cat_coberturas (
 );
 CREATE INDEX IF NOT EXISTS ix_cob_paq ON cat_coberturas (grupo, paquete, tipo);
 
+-- Valores permitidos por cobertura (suma asegurada / deducible), por tipo de
+-- vehículo. `cat_coberturas` sólo trae el default de cada paquete, NO el menú
+-- de opciones que GNP realmente maneja — hallazgo de la Tarea A del módulo
+-- Juega y Compara (ver ADR-007 punto 1). Esta tabla sí lo trae: semilla de 225
+-- filas extraída del kit, cargada por importar_valores_coberturas.php.
+CREATE TABLE IF NOT EXISTS cat_cobertura_valores (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    grupo          TEXT    NOT NULL,             -- AUTO | MOTO
+    cve_cobertura  TEXT    NOT NULL,
+    tipo_valor     TEXT    NOT NULL,             -- SUMA_ASEGURADA | DEDUCIBLE
+    valor          TEXT    NOT NULL,
+    orden          INTEGER NOT NULL DEFAULT 0,   -- orden real del kit; el valor no siempre es numérico ("Amparada", "10 UMAS")
+    UNIQUE (grupo, cve_cobertura, tipo_valor, valor)
+);
+CREATE INDEX IF NOT EXISTS ix_cobval_busqueda ON cat_cobertura_valores (grupo, cve_cobertura, tipo_valor);
+
 -- Coberturas que no se pueden pedir juntas.
 -- GNP valida esto del lado suyo y rechaza la cotización completa, así que el
 -- sistema tiene que impedirlo antes de llamar.
@@ -124,6 +140,31 @@ CREATE TABLE IF NOT EXISTS cat_procedencias (
     verificado   INTEGER NOT NULL DEFAULT 0,
     orden        INTEGER NOT NULL DEFAULT 0
 );
+
+-- Paquete propio de Equinox: un paquete base de GNP + coberturas elegidas a la
+-- medida (módulo Juega y Compara). Catálogo administrado, no capturado a mano
+-- en cada venta — mismo espíritu que cat_paquetes. Ver ADR-007 punto 5.
+CREATE TABLE IF NOT EXISTS cat_plantillas (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre        TEXT    NOT NULL UNIQUE,      -- "Equinox Agente de Seguros y de Fianzas"
+    cve_paquete   TEXT    NOT NULL,             -- el paquete base de GNP (cat_paquetes.cve_paquete)
+    activo        INTEGER NOT NULL DEFAULT 1,
+    creado_en     TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- Coberturas de la plantilla, con el valor elegido para cada una.
+-- ADR-007 punto 3 (confirmado contra GNP el 2026-09-10): sólo se pueden tomar
+-- coberturas que el paquete base YA trae como Básica u Opcional — no se puede
+-- salir de ahí. La capa que arma la plantilla es responsable de no ofrecer nada
+-- fuera de ese conjunto.
+CREATE TABLE IF NOT EXISTS cat_plantilla_coberturas (
+    plantilla_id   INTEGER NOT NULL REFERENCES cat_plantillas(id) ON DELETE CASCADE,
+    cve_cobertura  TEXT    NOT NULL,            -- cat_coberturas.cve_cobertura
+    suma_asegurada TEXT,                        -- debe existir en cat_coberturas para esa clave
+    deducible      TEXT,
+    PRIMARY KEY (plantilla_id, cve_cobertura)
+);
+CREATE INDEX IF NOT EXISTS ix_plancob_plantilla ON cat_plantilla_coberturas (plantilla_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- COTIZACIONES
@@ -343,6 +384,33 @@ SQL);
             ['Blindado',    '',   0, 7],
         ] as $p) {
             $st->execute($p);
+        }
+
+        // Una plantilla ficticia sólo para desarrollo — nunca en producción.
+        // La primera plantilla real ("Equinox Agente de Seguros y de Fianzas")
+        // la define Producto; esto es sólo para tener algo que ver en la
+        // pantalla de administración mientras tanto. Ver ADR-007 punto 5.
+        if (!Env::esProduccion()) {
+            $pdo->prepare(
+                'INSERT INTO cat_plantillas (nombre, cve_paquete, activo)
+                 VALUES (?,?,?) ON CONFLICT (nombre) DO NOTHING'
+            )->execute(['[PRUEBA DEV] Plantilla de ejemplo', 'PRS0009355', 1]);
+
+            $idDev = $pdo->query(
+                "SELECT id FROM cat_plantillas WHERE nombre = '[PRUEBA DEV] Plantilla de ejemplo'"
+            )->fetchColumn();
+
+            if ($idDev !== false) {
+                $pc = $pdo->prepare(
+                    'INSERT INTO cat_plantilla_coberturas (plantilla_id, cve_cobertura, suma_asegurada, deducible)
+                     VALUES (?,?,?,?) ON CONFLICT (plantilla_id, cve_cobertura) DO NOTHING'
+                );
+                // Amplia (PRS0009355): GMO a 300,000 — valor ya confirmado contra
+                // GNP en la prueba de docs/02.6-coberturas-modificadas.md.
+                $pc->execute([(int) $idDev, '0000000906', '300000', 'N/A']);
+                // Accidentes al Conductor, opcional en Amplia, con su default.
+                $pc->execute([(int) $idDev, '0000000893', '100000', 'N/A']);
+            }
         }
     }
 }

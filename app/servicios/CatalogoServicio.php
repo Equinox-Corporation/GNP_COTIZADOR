@@ -133,6 +133,54 @@ final class CatalogoServicio
     }
 
     /**
+     * Todas las coberturas que un paquete trae — Básica u Opcional — con su
+     * valor por omisión. A diferencia de opcionalesDe(), no filtra por tipo:
+     * la usa el módulo Juega y Compara (ADR-007) para armar una plantilla
+     * propia, donde hace falta ver también las Básicas para poder tocarlas.
+     *
+     * ADR-007 punto 3, confirmado contra GNP: sólo se puede tocar una
+     * cobertura que el paquete YA trae (Básica u Opcional) — no se puede
+     * salir de este conjunto.
+     *
+     * @return list<array{cve_cobertura:string,nombre:string,tipo:string,sa_valor:string,sa_unidad:string,ded_valor:string,ded_unidad:string,grupo_excl:string}>
+     */
+    public static function coberturasDe(string $grupo, string $paquete): array
+    {
+        return Db::todos(
+            "SELECT c.cve_cobertura, c.nombre, c.tipo, c.sa_valor, c.sa_unidad, c.ded_valor, c.ded_unidad,
+                    COALESCE(x.grupo_excl, '') AS grupo_excl
+               FROM cat_coberturas c
+               LEFT JOIN cat_coberturas_excluyentes x ON x.cve_cobertura = c.cve_cobertura
+              WHERE c.grupo = ? AND c.paquete = ?
+              ORDER BY CASE c.tipo WHEN 'BASICA' THEN 0 ELSE 1 END, c.nombre",
+            [$grupo, $paquete]
+        );
+    }
+
+    /**
+     * Valores permitidos de una cobertura — el menú real de GNP, cargado por
+     * importar_valores_coberturas.php desde el kit (ver ADR-007 punto 1).
+     * Devuelve listas separadas de suma asegurada y deducible; cualquiera de
+     * las dos puede venir vacía si esa cobertura no se mueve por ese lado
+     * (ej. "Daños Materiales Pérdida Parcial" no tiene suma que elegir).
+     *
+     * @return array{suma:list<string>,deducible:list<string>}
+     */
+    public static function valoresDeCobertura(string $grupo, string $cveCobertura): array
+    {
+        $filas = Db::todos(
+            'SELECT tipo_valor, valor FROM cat_cobertura_valores
+              WHERE grupo = ? AND cve_cobertura = ? ORDER BY tipo_valor, orden',
+            [$grupo, $cveCobertura]
+        );
+        $r = ['suma' => [], 'deducible' => []];
+        foreach ($filas as $f) {
+            $r[$f['tipo_valor'] === 'DEDUCIBLE' ? 'deducible' : 'suma'][] = $f['valor'];
+        }
+        return $r;
+    }
+
+    /**
      * Opcionales comunes a TODOS los paquetes elegidos.
      * Sólo se ofrecen ésas: una cobertura que no aplique a algún paquete
      * haría fallar (o desviar) la cotización de ese paquete.

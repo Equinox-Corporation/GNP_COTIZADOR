@@ -125,6 +125,18 @@ input:focus, select:focus { outline: 2px solid var(--marca); outline-offset: 1px
 details { margin-top: 1rem; }
 summary { cursor: pointer; font-size: .9rem; color: var(--marca); }
 
+/* ── Plantillas (Juega y Compara) ───────────────────────────── */
+.lista-coberturas { display: flex; flex-direction: column; gap: .5rem; margin: .8rem 0; }
+.fila-cobertura {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .8rem;
+  border: 1px solid var(--linea); border-radius: 8px; padding: .5rem .8rem; background: var(--papel);
+}
+.fila-cobertura .chip { flex: 1 1 260px; border: none; padding: 0; background: none; }
+.campo-valor { display: flex; flex-direction: column; gap: .2rem; font-size: .78rem; color: var(--tinta-sua); margin: 0; }
+.campo-valor input { width: 130px; font-size: .88rem; }
+.btn.peligro { color: var(--err); }
+.btn.peligro:hover { border-color: var(--err); }
+
 /* ── Botones ────────────────────────────────────────────────── */
 .acciones { display: flex; align-items: center; gap: 1rem; margin: 1.5rem 0; flex-wrap: wrap; }
 .btn {

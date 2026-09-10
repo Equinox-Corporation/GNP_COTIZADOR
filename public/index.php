@@ -20,7 +20,8 @@ define('BASE_URL', rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] 
 
 foreach (['core/Esquema', 'core/Db', 'core/Auth', 'core/GnpClient', 'core/PdfBasico',
           'servicios/CatalogoServicio', 'servicios/CotizacionServicio', 'servicios/ImpresionServicio',
-          'servicios/EvidenciaServicio', 'servicios/UsuarioServicio', 'servicios/ComparativoServicio'] as $c) {
+          'servicios/EvidenciaServicio', 'servicios/UsuarioServicio', 'servicios/ComparativoServicio',
+          'servicios/PlantillaServicio'] as $c) {
     require RUTA_APP . '/' . $c . '.php';
 }
 
@@ -417,6 +418,71 @@ switch ($ruta) {
         }
         $err = UsuarioServicio::alternarAdmin((int) ($_POST['id'] ?? 0));
         redirigir('usuarios', $err !== '' ? ['error' => $err] : []);
+
+    // ─── Módulo Juega y Compara: plantillas propias — sólo administradores ──
+    //
+    // Construida la pantalla y el CRUD (ADR-007, Tarea C), pero deliberadamente
+    // SIN conectar a CotizacionServicio: no se puede cotizar todavía con una
+    // plantilla. Esa conexión es una decisión aparte, pendiente de que Producto
+    // cierre el contenido de la primera plantilla real.
+    case 'plantillas':
+        Auth::exigirAdmin();
+        vista('plantillas', [
+            'filas'        => PlantillaServicio::listar(),
+            'paquetesBase' => PlantillaServicio::paquetesBase(),
+            'error'        => (string) ($_GET['error'] ?? ''),
+            'ok'           => (string) ($_GET['ok'] ?? ''),
+            'editarId'     => (int) ($_GET['editar'] ?? 0),
+        ]);
+        exit;
+
+    case 'plantillas/guardar':
+        Auth::exigirAdmin();
+        if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
+            redirigir('plantillas');
+        }
+        $idPlant = (int) ($_POST['id'] ?? 0);
+        $coberturasPost = [];
+        foreach ((array) ($_POST['coberturas'] ?? []) as $cve) {
+            $cve = (string) $cve;
+            $coberturasPost[] = [
+                'cve'       => $cve,
+                'suma'      => (string) ($_POST['suma_' . $cve] ?? ''),
+                'deducible' => (string) ($_POST['ded_' . $cve] ?? ''),
+            ];
+        }
+        $r = PlantillaServicio::guardar(
+            $idPlant > 0 ? $idPlant : null,
+            (string) ($_POST['nombre'] ?? ''),
+            (string) ($_POST['cve_paquete'] ?? ''),
+            !empty($_POST['activo']),
+            $coberturasPost
+        );
+        redirigir('plantillas', $r['ok']
+            ? ['ok' => $r['mensaje']]
+            : ['error' => $r['mensaje'], 'editar' => $idPlant]);
+
+    case 'plantillas/eliminar':
+        Auth::exigirAdmin();
+        if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
+            redirigir('plantillas');
+        }
+        $err = PlantillaServicio::eliminar((int) ($_POST['id'] ?? 0));
+        redirigir('plantillas', $err !== '' ? ['error' => $err] : ['ok' => 'Plantilla eliminada.']);
+
+    case 'plantillas/estado':
+        Auth::exigirAdmin();
+        if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
+            redirigir('plantillas');
+        }
+        $err = PlantillaServicio::alternarActivo((int) ($_POST['id'] ?? 0));
+        redirigir('plantillas', $err !== '' ? ['error' => $err] : []);
+
+    // Coberturas disponibles del paquete base elegido, para el selector en
+    // cascada. Admin-only, como el resto del módulo.
+    case 'plantillas/api-coberturas':
+        Auth::exigirAdmin();
+        json(['datos' => PlantillaServicio::coberturasDisponibles((string) ($_GET['cve_paquete'] ?? ''))]);
 
     default:
         redirigir('cotizar');
