@@ -27,13 +27,36 @@ final class CotizacionServicio
 
     /**
      * @param array        $f          datos del formulario ya validados
-     * @param list<string> $cvePaquetes claves de paquete a cotizar
-     * @param list<array{cve:string,suma:string}> $opcionales
+     * @param list<string> $cvePaquetes claves de paquete a cotizar (se ignora si se da $plantillaId)
+     * @param list<array{cve:string,suma?:string,deducible?:string}> $opcionales (se ignora si se da $plantillaId)
+     * @param int|null $plantillaId  si se da, se cotiza con esa plantilla propia (ADR-007):
+     *        un solo paquete —el de la plantilla— con sus coberturas ya revalidadas contra
+     *        el catálogo actual (`PlantillaServicio::paraCotizar()`). No convive con el
+     *        comparativo multi-paquete: eso es ADR-007 punto 7, todavía sin resolver.
      *
      * @return array{ok:bool, cotizacion_id:int, mensaje:string}
      */
-    public static function cotizar(array $f, array $cvePaquetes, array $opcionales = []): array
+    public static function cotizar(array $f, array $cvePaquetes, array $opcionales = [], ?int $plantillaId = null): array
     {
+        if ($plantillaId !== null) {
+            $aplicada = PlantillaServicio::paraCotizar($plantillaId);
+            if (!$aplicada['ok']) {
+                return ['ok' => false, 'cotizacion_id' => 0, 'mensaje' => $aplicada['mensaje']];
+            }
+            if ($aplicada['tipo_persona'] !== $f['tipo_persona']) {
+                return ['ok' => false, 'cotizacion_id' => 0, 'mensaje' =>
+                    'Esa plantilla es para persona ' . ($aplicada['tipo_persona'] === 'F' ? 'física' : 'moral') .
+                    ' y el solicitante capturado es ' . ($f['tipo_persona'] === 'F' ? 'física' : 'moral') . '. Ajusta uno de los dos.'];
+            }
+            if ($aplicada['tipo_vehiculo'] !== $f['tipo_vehiculo']) {
+                return ['ok' => false, 'cotizacion_id' => 0, 'mensaje' =>
+                    'Esa plantilla es para ' . (CatalogoServicio::TIPOS_VEHICULO[$aplicada['tipo_vehiculo']] ?? $aplicada['tipo_vehiculo']) .
+                    ' y el vehículo capturado es ' . (CatalogoServicio::TIPOS_VEHICULO[$f['tipo_vehiculo']] ?? $f['tipo_vehiculo']) . '. Ajusta uno de los dos.'];
+            }
+            $cvePaquetes = [$aplicada['cve_paquete']];
+            $opcionales  = $aplicada['coberturas'];
+        }
+
         $veh = CatalogoServicio::vehiculo(
             $f['tipo_vehiculo'], $f['armadora'], $f['carroceria'], $f['version'], (int) $f['modelo']
         );
@@ -125,11 +148,13 @@ final class CotizacionServicio
             }
         }
 
+        // deducible y plantilla_id son NULL/'' por default para el flujo manual
+        // (sin plantilla): no cambia lo que cotizar.php ya guardaba antes de esto.
         foreach ($opcionales as $o) {
             Db::ejecutar(
-                'INSERT INTO cot_opcionales (cotizacion_id, cve_cobertura, suma_asegurada) VALUES (?,?,?)
+                'INSERT INTO cot_opcionales (cotizacion_id, cve_cobertura, suma_asegurada, deducible, plantilla_id) VALUES (?,?,?,?,?)
                  ON CONFLICT (cotizacion_id, cve_cobertura) DO NOTHING',
-                [$cotId, $o['cve'], $o['suma'] ?? '']
+                [$cotId, $o['cve'], $o['suma'] ?? '', $o['deducible'] ?? '', $plantillaId]
             );
         }
 

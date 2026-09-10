@@ -21,6 +21,9 @@ Fuera de las carpetas numeradas, en la raíz de `docs/`, viven documentos operat
 | [`homologacion-estado.md`](./homologacion-estado.md) | Corte de resultados de la homologación al 2026-08-27. Reporte de estado, no decisión |
 | [`02.5-contratante-minimo.md`](./02.5-contratante-minimo.md) | Guía de una prueba pendiente contra producción |
 | [`02.6-coberturas-modificadas.md`](./02.6-coberturas-modificadas.md) | Prueba de `<COBERTURAS>` modificado contra producción — ya corrida y documentada, sustenta ADR-007 |
+| [`02.7-plantillas-conectadas.md`](./02.7-plantillas-conectadas.md) | Conexión de las plantillas propias al flujo real de cotización — ya corrida y documentada |
+| [`02.8-deducible-en-coberturas.md`](./02.8-deducible-en-coberturas.md) | GNP sí acepta `<DEDUCIBLE>` en `<COBERTURA>` — probado, sin conectar (paso previo a `02.9`) |
+| [`02.9-deducible-conectado.md`](./02.9-deducible-conectado.md) | Deducible conectado de punta a punta (plantilla → GNP → `cot_opcionales`) — ya corrida y documentada |
 
 ---
 
@@ -51,7 +54,7 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 ## Propuestas en curso
 
-- **ADR-007 — Módulo Juega y Compara:** paquetes propios de Equinox armados sobre coberturas configurables de GNP. **Propuesto**, pendiente de aprobación formal de Producto/TI antes de conectar el flujo real de cotización — pero sus puntos 1 a 3 (el menú de valores permitidos existe y ya está cargado, GNP acepta `<COBERTURAS>` modificado y tarifica coherente, y no se puede salir del paquete base) ya están `[CONFIRMADO]` contra producción. Detalle en [03_Decisiones/ADR-007](./03_Decisiones/ADR-007-modulo-juega-y-compara.md); la prueba que lo sustenta en [`02.6-coberturas-modificadas.md`](./02.6-coberturas-modificadas.md).
+- **ADR-007 — Módulo Juega y Compara:** paquetes propios de Equinox armados sobre coberturas configurables de GNP. **Propuesto**, pendiente sólo de la firma formal de Producto/TI — funcionalmente **cerrado**: puntos 1 a 6 `[CONFIRMADO]` contra producción, incluida la conexión completa de plantillas (paquete, coberturas, suma asegurada y deducible) al flujo real de cotización. Único cabo suelto: el punto 7 (multi-paquete + `<COBERTURAS>` modificado en una sola llamada), tarea aparte sin fecha, sin que nadie lo necesite todavía. Detalle en [03_Decisiones/ADR-007](./03_Decisiones/ADR-007-modulo-juega-y-compara.md); las pruebas que lo sustentan en [`02.6`](./02.6-coberturas-modificadas.md), [`02.7`](./02.7-plantillas-conectadas.md), [`02.8`](./02.8-deducible-en-coberturas.md) y [`02.9`](./02.9-deducible-conectado.md).
 
 ---
 
@@ -59,12 +62,12 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 | | |
 |---|---|
-| Cotizaciones hechas contra producción | 15 (35 tarificaciones) |
+| Cotizaciones hechas contra producción | 21 (40 tarificaciones) |
 | Catálogo GNP descargado | 48,155 vehículos · 392 paquetes · 167 coberturas |
 | Catálogo maestro comercial | 107 marcas · 7,777 submarcas |
 | Homologadas con GNP | 3,461 (44.5%) |
 | Procedencias verificadas | 1 de 7 (sólo Residentes, `01`) |
-| Llamadas registradas en bitácora | 56 |
+| Llamadas registradas en bitácora | 70 |
 
 ---
 
@@ -84,4 +87,4 @@ _(Beto, 2026-09-10)_ — Hallazgos de la revisión del repositorio. No son decis
 
 ---
 
-Última actualización: 2026-09-10 — se crea la biblioteca con ADR-001 a ADR-006; se agrega ADR-007 (módulo Juega y Compara, propuesto) y la prueba `02.6-coberturas-modificadas.md` que confirmó sus puntos 1 a 3.
+Última actualización: 2026-09-10 — se crea la biblioteca con ADR-001 a ADR-006; se agrega ADR-007 (módulo Juega y Compara, propuesto) y las pruebas `02.6` a `02.9` (coberturas modificadas, plantillas conectadas, deducible probado y deducible conectado) — el módulo queda **funcionalmente cerrado**, con el único pendiente deliberado siendo el punto 7 (multi-paquete + `<COBERTURAS>` en una sola llamada), sin fecha porque no lo necesita nadie todavía.

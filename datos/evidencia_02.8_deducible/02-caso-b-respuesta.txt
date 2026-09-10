@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><ERROR><DESCRIPCION>El deducible no aplica para la cobertura con clave 0000001288 (122067217).</DESCRIPCION><CLAVE>13</CLAVE><ORIGEN>cotizador-eot</ORIGEN><FECHA>2026-09-10T15:33:00.045-06:00</FECHA></ERROR>

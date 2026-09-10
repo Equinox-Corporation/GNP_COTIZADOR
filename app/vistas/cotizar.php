@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-/** @var array $diag @var array $procedencias @var string $error @var array $previo */
+/** @var array $diag @var array $procedencias @var list<array<string,mixed>> $plantillas @var string $error @var array $previo */
 $v = static fn (string $k, string $d = ''): string => h($previo[$k] ?? $d);
 ?>
 
@@ -171,20 +171,43 @@ $v = static fn (string $k, string $d = ''): string => h($previo[$k] ?? $d);
 
 <section class="tarjeta">
   <h2>3 · Plan</h2>
-  <p class="ayuda">
-    Marca <span class="req">*</span> al menos un paquete. Todos los que marques se cotizan en
-    <strong>una sola llamada</strong> a GNP y se muestran lado a lado.
-  </p>
-  <div id="paquetes" class="opciones"><p class="ayuda">Elige primero el vehículo y el tipo de persona.</p></div>
 
-  <details id="det_opcionales">
-    <summary>Coberturas opcionales</summary>
+  <?php if ($plantillas !== []): ?>
+  <label class="linea">Usar una plantilla propia
+    <select name="plantilla_id" id="plantilla_id">
+      <option value="0">— Ninguna: elegir paquetes manualmente abajo —</option>
+      <?php foreach ($plantillas as $pl): ?>
+        <option value="<?= (int) $pl['id'] ?>" <?= $v('plantilla_id', '0') === (string) $pl['id'] ? 'selected' : '' ?>>
+          <?= h($pl['nombre']) ?> · <?= h(ucwords(mb_strtolower($pl['paquete'], 'UTF-8'))) ?>
+          · <?= $pl['tipo_persona'] === 'F' ? 'Física' : 'Moral' ?>
+          · <?= h(CatalogoServicio::TIPOS_VEHICULO[$pl['tipo_vehiculo']] ?? $pl['tipo_vehiculo']) ?>
+        </option>
+      <?php endforeach; ?>
+    </select>
+    <span class="ayuda">
+      Módulo Juega y Compara (<code>ADR-007</code>). Al elegir una plantilla se cotiza <strong>sólo su
+      paquete</strong>, con sus coberturas ya definidas — se ignora lo que esté marcado abajo. El tipo de
+      persona y el tipo de vehículo capturados arriba deben coincidir con los de la plantilla.
+    </span>
+  </label>
+  <?php endif; ?>
+
+  <div id="seccion_manual">
     <p class="ayuda">
-      Sólo aparecen las que aplican a <em>todos</em> los paquetes marcados.
-      Verifica siempre que el precio cambie: si no cambia, GNP no las aplicó.
+      Marca <span class="req">*</span> al menos un paquete. Todos los que marques se cotizan en
+      <strong>una sola llamada</strong> a GNP y se muestran lado a lado.
     </p>
-    <div id="opcionales" class="opciones"></div>
-  </details>
+    <div id="paquetes" class="opciones"><p class="ayuda">Elige primero el vehículo y el tipo de persona.</p></div>
+
+    <details id="det_opcionales">
+      <summary>Coberturas opcionales</summary>
+      <p class="ayuda">
+        Sólo aparecen las que aplican a <em>todos</em> los paquetes marcados.
+        Verifica siempre que el precio cambie: si no cambia, GNP no las aplicó.
+      </p>
+      <div id="opcionales" class="opciones"></div>
+    </details>
+  </div>
 
   <label class="linea">Forma de pago
     <select name="periodicidad">
@@ -267,6 +290,7 @@ async function cargarPaquetes() {
   cont.innerHTML = '';
   if (!datos.length) {
     cont.appendChild(el('p', { className: 'ayuda', textContent: 'GNP no ofrece paquetes para esta combinación.' }));
+    actualizarModoPlantilla?.();
     return cargarOpcionales();
   }
   for (const p of datos) {
@@ -278,6 +302,10 @@ async function cargarPaquetes() {
     cont.appendChild(w);
   }
   cargarOpcionales();
+  // Los checkboxes se acaban de recrear: si ya hay una plantilla elegida
+  // (ej. al volver a mostrar el formulario tras un error), deben nacer
+  // deshabilitados igual que el resto de #seccion_manual.
+  actualizarModoPlantilla?.();
 }
 
 async function cargarOpcionales() {
@@ -443,6 +471,22 @@ $('#frm').addEventListener('submit', () => {
   b.textContent = 'Consultando a GNP…';
   setTimeout(() => { b.disabled = false; b.textContent = 'Cotizar en GNP'; }, 60000);
 });
+
+// ── Plantilla propia (ADR-007) ───────────────────────────────────────────────
+// Elegir una plantilla reemplaza la selección manual de paquete/opcionales,
+// no la complementa. Deshabilitar los campos de #seccion_manual (no sólo
+// ocultarlos) evita que viajen al servidor valores marcados de antes — un
+// <input disabled> no se manda con el formulario.
+function actualizarModoPlantilla() {
+  const sel = $('#plantilla_id');
+  if (!sel) return;
+  const usaPlantilla = sel.value !== '0';
+  const manual = $('#seccion_manual');
+  manual.style.display = usaPlantilla ? 'none' : '';
+  manual.querySelectorAll('input, select').forEach((c) => { c.disabled = usaPlantilla; });
+}
+$('#plantilla_id')?.addEventListener('change', actualizarModoPlantilla);
+actualizarModoPlantilla();
 
 cargarMarcas().then(cargarPaquetes);
 </script>

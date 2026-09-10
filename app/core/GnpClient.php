@@ -133,7 +133,7 @@ final class GnpClient
      *
      * @param array $d  vehículo, contratante, conductor, vigencia, periodicidad
      * @param list<array{cve:string,desc:string}> $paquetes
-     * @param list<array{cve:string,suma:string}> $opcionales
+     * @param list<array{cve:string,nombre?:string,suma?:string,deducible?:string}> $opcionales
      */
     public function cotizar(array $d, array $paquetes, array $opcionales = []): array
     {
@@ -232,6 +232,13 @@ final class GnpClient
                     }
                     if (($c['suma'] ?? '') !== '') {
                         $xml .= '               <SUMA_ASEGURADA>' . $e($c['suma']) . "</SUMA_ASEGURADA>\n";
+                    }
+                    // Verificado contra producción el 10 de septiembre de 2026
+                    // (docs/02.8-deducible-en-coberturas.md): GNP acepta DEDUCIBLE
+                    // aquí y lo aplica de verdad — no lo ignora. Mismo tratamiento
+                    // opcional que NOMBRE y SUMA_ASEGURADA.
+                    if (($c['deducible'] ?? '') !== '') {
+                        $xml .= '               <DEDUCIBLE>' . $e($c['deducible']) . "</DEDUCIBLE>\n";
                     }
                     $xml .= "            </COBERTURA>\n";
                 }

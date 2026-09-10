@@ -115,17 +115,89 @@ final class PlantillaServicio
     }
 
     /**
-     * Crea o edita una plantilla completa: datos + coberturas, en una
-     * transacción. Valida localmente antes de tocar la base:
+     * Valida un conjunto de coberturas contra un paquete base: pertenencia
+     * (ADR-007 punto 3), valores permitidos (ADR-007 punto 1) y exclusión
+     * mutua. La comparten `guardar()` (al capturar la plantilla) y
+     * `paraCotizar()` (al cotizar de verdad, como defensa en profundidad:
+     * lo que era válido cuando se guardó la plantilla puede haber dejado de
+     * serlo si GNP cambió su catálogo desde entonces — mismo criterio que ya
+     * aplica el resto del proyecto).
      *
-     *   1. El paquete base existe en cat_paquetes.
-     *   2. Cada cobertura elegida pertenece a ese paquete (Básica u Opcional)
-     *      — ADR-007 punto 3, confirmado: no se puede salir de ahí.
-     *   3. La suma asegurada y el deducible elegidos están en el menú real de
-     *      `cat_cobertura_valores` para esa cobertura — ADR-007 punto 1.
-     *   4. Ninguna combinación de coberturas elegidas es excluyente entre sí
-     *      — cat_coberturas_excluyentes, mismo mecanismo que ya usa el
-     *      cotizador normal.
+     * @param list<array{cve:string,suma?:string,deducible?:string}> $coberturas
+     * @return array{ok:bool,mensaje:string,resueltas:list<array{cve:string,nombre:string,suma:string,deducible:string}>}
+     */
+    private static function validarCoberturas(string $grupo, string $paquete, array $coberturas): array
+    {
+        $porClave = [];
+        foreach (CatalogoServicio::coberturasDe($grupo, $paquete) as $d) {
+            $porClave[$d['cve_cobertura']] = $d;
+        }
+
+        $claves    = [];
+        $resueltas = [];
+        foreach ($coberturas as $c) {
+            $cve = trim((string) ($c['cve'] ?? ''));
+            if ($cve === '') {
+                continue;
+            }
+            if (!isset($porClave[$cve])) {
+                return ['ok' => false, 'mensaje' =>
+                    "La cobertura {$cve} no pertenece al paquete \"{$paquete}\" (ni como Básica ni como Opcional). " .
+                    'GNP confirmó que no se puede salir del paquete base — ver ADR-007 punto 3.', 'resueltas' => []];
+            }
+
+            $valores   = CatalogoServicio::valoresDeCobertura($grupo, $cve);
+            $suma      = trim((string) ($c['suma'] ?? ''));
+            $ded       = trim((string) ($c['deducible'] ?? ''));
+            $nombreCob = $porClave[$cve]['nombre'];
+
+            // Si esta cobertura no tiene menú de valores para una dimensión
+            // (ej. Gastos Médicos Ocupantes no se mueve por deducible), no hay
+            // nada válido que mandar por ese lado — aunque haya quedado
+            // guardado un texto como "N/A" (placeholder heredado de
+            // cat_coberturas.ded_valor, no un valor real de GNP). Sin esto,
+            // GnpClient lo transmitiría tal cual y GNP responde con un error
+            // de parseo interno confuso ("For input string: N/A") en vez de
+            // un rechazo claro — encontrado al probar esto en producción.
+            if ($valores['suma'] === []) {
+                $suma = '';
+            }
+            if ($valores['deducible'] === []) {
+                $ded = '';
+            }
+
+            if ($valores['suma'] !== [] && $suma !== '' && !in_array($suma, $valores['suma'], true)) {
+                return ['ok' => false, 'mensaje' =>
+                    "\"{$suma}\" no es una suma asegurada permitida para \"{$nombreCob}\". " .
+                    'Valores permitidos: ' . implode(', ', $valores['suma']) . '.', 'resueltas' => []];
+            }
+            if ($valores['deducible'] !== [] && $ded !== '' && !in_array($ded, $valores['deducible'], true)) {
+                return ['ok' => false, 'mensaje' =>
+                    "\"{$ded}\" no es un deducible permitido para \"{$nombreCob}\". " .
+                    'Valores permitidos: ' . implode(', ', $valores['deducible']) . '.', 'resueltas' => []];
+            }
+
+            $claves[]    = $cve;
+            $resueltas[] = ['cve' => $cve, 'nombre' => $nombreCob, 'suma' => $suma, 'deducible' => $ded];
+        }
+
+        if ($claves === []) {
+            return ['ok' => false, 'mensaje' => 'No hay ninguna cobertura válida que guardar.', 'resueltas' => []];
+        }
+
+        $choque = CatalogoServicio::chocanEntreSi($claves);
+        if ($choque !== '') {
+            return ['ok' => false, 'mensaje' => $choque, 'resueltas' => []];
+        }
+
+        return ['ok' => true, 'mensaje' => '', 'resueltas' => $resueltas];
+    }
+
+    /**
+     * Crea o edita una plantilla completa: datos + coberturas, en una
+     * transacción. Valida localmente antes de tocar la base — ver
+     * `validarCoberturas()` — y además que el paquete base exista y que el
+     * nombre no se repita.
      *
      * @param list<array{cve:string,suma?:string,deducible?:string}> $coberturas
      * @return array{ok:bool,mensaje:string,id:int}
@@ -141,51 +213,11 @@ final class PlantillaServicio
         if ($base === null) {
             return ['ok' => false, 'mensaje' => 'Ese paquete base no existe o ya no está disponible.', 'id' => 0];
         }
-        $grupo = CatalogoServicio::grupo($base['tipo_vehiculo']);
 
-        $porClave = [];
-        foreach (CatalogoServicio::coberturasDe($grupo, $base['paquete']) as $d) {
-            $porClave[$d['cve_cobertura']] = $d;
-        }
-
-        $claves = [];
-        foreach ($coberturas as $c) {
-            $cve = trim((string) ($c['cve'] ?? ''));
-            if ($cve === '') {
-                continue;
-            }
-            if (!isset($porClave[$cve])) {
-                return ['ok' => false, 'mensaje' =>
-                    "La cobertura {$cve} no pertenece al paquete \"{$base['paquete']}\" (ni como Básica ni como Opcional). " .
-                    'GNP confirmó que no se puede salir del paquete base — ver ADR-007 punto 3.', 'id' => 0];
-            }
-
-            $valores = CatalogoServicio::valoresDeCobertura($grupo, $cve);
-            $suma = trim((string) ($c['suma'] ?? ''));
-            $ded  = trim((string) ($c['deducible'] ?? ''));
-            $nombreCob = $porClave[$cve]['nombre'];
-
-            if ($valores['suma'] !== [] && $suma !== '' && !in_array($suma, $valores['suma'], true)) {
-                return ['ok' => false, 'mensaje' =>
-                    "\"{$suma}\" no es una suma asegurada permitida para \"{$nombreCob}\". " .
-                    'Valores permitidos: ' . implode(', ', $valores['suma']) . '.', 'id' => 0];
-            }
-            if ($valores['deducible'] !== [] && $ded !== '' && !in_array($ded, $valores['deducible'], true)) {
-                return ['ok' => false, 'mensaje' =>
-                    "\"{$ded}\" no es un deducible permitido para \"{$nombreCob}\". " .
-                    'Valores permitidos: ' . implode(', ', $valores['deducible']) . '.', 'id' => 0];
-            }
-
-            $claves[] = $cve;
-        }
-
-        if ($claves === []) {
-            return ['ok' => false, 'mensaje' => 'Elige al menos una cobertura para la plantilla.', 'id' => 0];
-        }
-
-        $choque = CatalogoServicio::chocanEntreSi($claves);
-        if ($choque !== '') {
-            return ['ok' => false, 'mensaje' => $choque, 'id' => 0];
+        $v = self::validarCoberturas(CatalogoServicio::grupo($base['tipo_vehiculo']), $base['paquete'], $coberturas);
+        if (!$v['ok']) {
+            return ['ok' => false, 'mensaje' => $v['mensaje'] === 'No hay ninguna cobertura válida que guardar.'
+                ? 'Elige al menos una cobertura para la plantilla.' : $v['mensaje'], 'id' => 0];
         }
 
         $duplicado = Db::valor(
@@ -215,14 +247,10 @@ final class PlantillaServicio
                 Db::ejecutar('DELETE FROM cat_plantilla_coberturas WHERE plantilla_id = ?', [$id]);
             }
 
-            foreach ($coberturas as $c) {
-                $cve = trim((string) ($c['cve'] ?? ''));
-                if ($cve === '') {
-                    continue;
-                }
+            foreach ($v['resueltas'] as $c) {
                 Db::ejecutar(
                     'INSERT INTO cat_plantilla_coberturas (plantilla_id, cve_cobertura, suma_asegurada, deducible) VALUES (?,?,?,?)',
-                    [$id, $cve, trim((string) ($c['suma'] ?? '')), trim((string) ($c['deducible'] ?? ''))]
+                    [$id, $c['cve'], $c['suma'], $c['deducible']]
                 );
             }
             $pdo->commit();
@@ -232,6 +260,72 @@ final class PlantillaServicio
         }
 
         return ['ok' => true, 'mensaje' => 'Plantilla guardada.', 'id' => $id];
+    }
+
+    /**
+     * Plantillas activas, para ofrecerlas al cotizar (index.php, ruta "cotizar").
+     *
+     * @return list<array{id:int,nombre:string,cve_paquete:string,paquete:string,tipo_persona:string,tipo_vehiculo:string}>
+     */
+    public static function activas(): array
+    {
+        return Db::todos(
+            "SELECT p.id, p.nombre, p.cve_paquete, cp.paquete, cp.tipo_persona, cp.tipo_vehiculo
+               FROM cat_plantillas p
+               JOIN cat_paquetes cp ON cp.cve_paquete = p.cve_paquete
+              WHERE p.activo = 1
+              GROUP BY p.id
+              ORDER BY p.nombre"
+        );
+    }
+
+    /**
+     * Resuelve una plantilla para cotizar de verdad: revalida sus coberturas
+     * contra el catálogo ACTUAL (`validarCoberturas()`) antes de que
+     * `CotizacionServicio::cotizar()` arme el `<COBERTURAS>` — nunca se
+     * confía en que lo validado al guardar la plantilla siga siendo válido.
+     *
+     * @return array{ok:bool,mensaje:string,cve_paquete:string,tipo_persona:string,tipo_vehiculo:string,coberturas:list<array{cve:string,nombre:string,suma:string,deducible:string}>}
+     */
+    public static function paraCotizar(int $id): array
+    {
+        $vacio = ['cve_paquete' => '', 'tipo_persona' => '', 'tipo_vehiculo' => '', 'coberturas' => []];
+
+        $p = Db::uno('SELECT * FROM cat_plantillas WHERE id = ? AND activo = 1', [$id]);
+        if ($p === null) {
+            return ['ok' => false, 'mensaje' => 'Esa plantilla ya no existe o está apagada.'] + $vacio;
+        }
+
+        $base = Db::uno('SELECT paquete, tipo_persona, tipo_vehiculo FROM cat_paquetes WHERE cve_paquete = ? LIMIT 1', [$p['cve_paquete']]);
+        if ($base === null) {
+            return ['ok' => false, 'mensaje' =>
+                "El paquete base de \"{$p['nombre']}\" ({$p['cve_paquete']}) ya no existe en cat_paquetes."] + $vacio;
+        }
+        $grupo = CatalogoServicio::grupo($base['tipo_vehiculo']);
+
+        $guardadas = Db::todos(
+            'SELECT cve_cobertura, suma_asegurada, deducible FROM cat_plantilla_coberturas WHERE plantilla_id = ?',
+            [$id]
+        );
+        $entrada = array_map(static fn (array $g): array => [
+            'cve' => $g['cve_cobertura'], 'suma' => $g['suma_asegurada'], 'deducible' => $g['deducible'],
+        ], $guardadas);
+
+        $v = self::validarCoberturas($grupo, $base['paquete'], $entrada);
+        if (!$v['ok']) {
+            return ['ok' => false, 'mensaje' =>
+                "La plantilla \"{$p['nombre']}\" ya no se puede aplicar tal cual: {$v['mensaje']} " .
+                'Corrígela en Paquetes propios antes de volver a intentar.'] + $vacio;
+        }
+
+        return [
+            'ok'            => true,
+            'mensaje'       => '',
+            'cve_paquete'   => $p['cve_paquete'],
+            'tipo_persona'  => $base['tipo_persona'],
+            'tipo_vehiculo' => $base['tipo_vehiculo'],
+            'coberturas'    => $v['resueltas'],
+        ];
     }
 
     /** @return string mensaje de error, o '' si quedó bien */

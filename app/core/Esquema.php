@@ -349,6 +349,18 @@ SQL);
             // entrar al panel nuevo para darle el rol a alguien.
             $pdo->exec('UPDATE sys_usuarios SET es_admin = 1 WHERE id = (SELECT MIN(id) FROM sys_usuarios)');
         }
+
+        // 10-sep-2026: módulo Juega y Compara (ADR-007) — cotizar con una
+        // plantilla propia sin perder el deducible elegido, ni de dónde salió
+        // la cobertura. `plantilla_id` queda NULL para el flujo manual que
+        // `cotizar.php` ya usaba: no cambia su comportamiento.
+        $hay = $columnas('cot_opcionales');
+        if (!in_array('deducible', $hay, true)) {
+            $pdo->exec("ALTER TABLE cot_opcionales ADD COLUMN deducible TEXT NOT NULL DEFAULT ''");
+        }
+        if (!in_array('plantilla_id', $hay, true)) {
+            $pdo->exec('ALTER TABLE cot_opcionales ADD COLUMN plantilla_id INTEGER NULL REFERENCES cat_plantillas(id)');
+        }
     }
 
     /** Datos que el sistema necesita para arrancar y no vienen del API. */
@@ -407,9 +419,12 @@ SQL);
                 );
                 // Amplia (PRS0009355): GMO a 300,000 — valor ya confirmado contra
                 // GNP en la prueba de docs/02.6-coberturas-modificadas.md.
-                $pc->execute([(int) $idDev, '0000000906', '300000', 'N/A']);
+                // Deducible '' (no 'N/A'): esta cobertura no tiene esa
+                // dimensión en cat_cobertura_valores — un texto ahí se
+                // transmitiría tal cual a GNP y lo rechaza (docs/02.9).
+                $pc->execute([(int) $idDev, '0000000906', '300000', '']);
                 // Accidentes al Conductor, opcional en Amplia, con su default.
-                $pc->execute([(int) $idDev, '0000000893', '100000', 'N/A']);
+                $pc->execute([(int) $idDev, '0000000893', '100000', '']);
             }
         }
     }

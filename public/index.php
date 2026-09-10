@@ -144,6 +144,7 @@ switch ($ruta) {
             vista('cotizar', [
                 'diag'         => CatalogoServicio::diagnostico(),
                 'procedencias' => CatalogoServicio::procedencias(),
+                'plantillas'   => PlantillaServicio::activas(),
                 'error'        => '',
                 'previo'       => [],
             ]);
@@ -153,6 +154,7 @@ switch ($ruta) {
         if (!Auth::tokenValido($_POST['_t'] ?? null)) {
             vista('cotizar', ['diag' => CatalogoServicio::diagnostico(),
                               'procedencias' => CatalogoServicio::procedencias(),
+                              'plantillas' => PlantillaServicio::activas(),
                               'error' => 'La sesión expiró. Vuelve a enviar el formulario.', 'previo' => $_POST]);
             exit;
         }
@@ -204,14 +206,18 @@ switch ($ruta) {
         $f['contratante_edad'] = $f['conductor_edad'];
         $f['contratante_cp']   = $f['conductor_cp'];
 
-        $paquetes = array_values(array_filter((array) ($_POST['paquetes'] ?? [])));
+        $paquetes    = array_values(array_filter((array) ($_POST['paquetes'] ?? [])));
+        // Elegir una plantilla (ADR-007) reemplaza la selección manual de
+        // paquete: cotiza con el paquete y las coberturas de la plantilla, no
+        // con lo marcado abajo. 0 = sin plantilla, flujo manual de siempre.
+        $plantillaId = (int) ($_POST['plantilla_id'] ?? 0);
 
         $faltan = [];
         if ($f['armadora'] === '' || $f['carroceria'] === '' || $f['version'] === '' || $f['modelo'] === 0) {
             $faltan[] = 'el vehículo completo (marca, línea, año y versión)';
         }
-        if ($paquetes === []) {
-            $faltan[] = 'al menos un paquete';
+        if ($plantillaId <= 0 && $paquetes === []) {
+            $faltan[] = 'al menos un paquete (o elige una plantilla propia)';
         }
         // Edad y CP del solicitante son los únicos datos de persona que se
         // exigen: son los que tarifican. El nombre y el RFC son para el
@@ -226,6 +232,7 @@ switch ($ruta) {
         if ($faltan !== []) {
             vista('cotizar', ['diag' => CatalogoServicio::diagnostico(),
                               'procedencias' => CatalogoServicio::procedencias(),
+                              'plantillas' => PlantillaServicio::activas(),
                               'error' => 'Falta ' . implode('; falta ', $faltan) . '.',
                               'previo' => $_POST]);
             exit;
@@ -252,9 +259,15 @@ switch ($ruta) {
             $f['conductor_nacimiento'] = (string) (date('Y') - $f['conductor_edad']) . '0101';
         }
 
+        // Coberturas sueltas a mano sólo aplican al flujo sin plantilla: al
+        // elegir una plantilla, CotizacionServicio::cotizar() arma las suyas
+        // propias (revalidadas) y éstas se ignoran, para no mezclar dos
+        // fuentes de <COBERTURAS> en la misma llamada.
         $opcionales = [];
-        foreach ((array) ($_POST['opcionales'] ?? []) as $cve) {
-            $opcionales[] = ['cve' => (string) $cve, 'suma' => (string) ($_POST['suma_' . $cve] ?? '')];
+        if ($plantillaId <= 0) {
+            foreach ((array) ($_POST['opcionales'] ?? []) as $cve) {
+                $opcionales[] = ['cve' => (string) $cve, 'suma' => (string) ($_POST['suma_' . $cve] ?? '')];
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -274,11 +287,12 @@ switch ($ruta) {
                       . 'si no es un caso de excepción, hay que revisar el dato antes de presentar esta cotización.';
         }
 
-        $res = CotizacionServicio::cotizar($f, $paquetes, $opcionales);
+        $res = CotizacionServicio::cotizar($f, $paquetes, $opcionales, $plantillaId > 0 ? $plantillaId : null);
 
         if (!$res['ok']) {
             vista('cotizar', ['diag' => CatalogoServicio::diagnostico(),
                               'procedencias' => CatalogoServicio::procedencias(),
+                              'plantillas' => PlantillaServicio::activas(),
                               'error' => $res['mensaje'], 'previo' => $_POST]);
             exit;
         }
