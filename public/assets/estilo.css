@@ -48,6 +48,16 @@ a  { color: var(--marca); }
 .barra nav { display: flex; gap: 1.2rem; }
 .barra nav a { text-decoration: none; color: var(--tinta-sua); padding: .3rem 0; border-bottom: 2px solid transparent; }
 .barra nav a.activo, .barra nav a:hover { color: var(--tinta); border-color: var(--marca); }
+/* "Juega y Compara" es la única entrada del nav con esta pastilla — mismo
+   tratamiento visual que el badge "GNP Cotizador" (.logo), valores calcados
+   a propósito. El resto del menú (Historial, Usuarios, Paquetes propios) se
+   queda como enlace de texto plano, sin badge. */
+.barra nav a.logo-nav {
+  background: var(--marca); color: #fff; font-weight: 700;
+  padding: .3rem .6rem; border-radius: 5px; letter-spacing: .02em; font-size: .85rem;
+  border-bottom: none;
+}
+.barra nav a.logo-nav.activo, .barra nav a.logo-nav:hover { color: #fff; border-color: transparent; }
 .sesion { margin-left: auto; display: flex; gap: 1rem; align-items: center; font-size: .9rem; color: var(--tinta-sua); }
 
 .cinta {

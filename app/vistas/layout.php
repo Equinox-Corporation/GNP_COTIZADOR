@@ -5,7 +5,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cotizador GNP · Equinox</title>
-<link rel="stylesheet" href="<?= h(BASE_URL) ?>/assets/estilo.css">
+<?php
+  // Parámetro de versión a mano: se sube cada vez que estilo.css cambie de
+  // fondo, para que el navegador no se quede con una copia vieja en caché
+  // (justo lo que pasó con el badge de "Juega y Compara"). No es un hash de
+  // contenido automático a propósito — para el tamaño de este proyecto,
+  // subir el número a mano alcanza; si se vuelve tedioso, ahí sí vale la
+  // pena automatizarlo (ej. con la fecha de modificación del archivo).
+  $versionEstilo = 2;
+?>
+<link rel="stylesheet" href="<?= h(BASE_URL) ?>/assets/estilo.css?v=<?= $versionEstilo ?>">
 </head>
 <body>
 
@@ -15,8 +24,8 @@
   </a>
   <?php if (Auth::dentro()): ?>
     <nav>
+      <a href="<?= h(url('juega-y-compara')) ?>" class="logo-nav<?= ($ruta ?? '') === 'juega-y-compara' ? ' activo' : '' ?>">Juega y Compara</a>
       <a href="<?= h(url('historial')) ?>"<?= ($ruta ?? '') === 'historial' ? ' class="activo"' : '' ?>>Historial</a>
-      <a href="<?= h(url('juega-y-compara')) ?>"<?= ($ruta ?? '') === 'juega-y-compara' ? ' class="activo"' : '' ?>>Juega y Compara</a>
       <?php if (Auth::esAdmin()): ?>
         <a href="<?= h(url('usuarios')) ?>"<?= ($ruta ?? '') === 'usuarios' ? ' class="activo"' : '' ?>>Usuarios</a>
         <a href="<?= h(url('plantillas')) ?>"<?= ($ruta ?? '') === 'plantillas' ? ' class="activo"' : '' ?>>Paquetes propios</a>
