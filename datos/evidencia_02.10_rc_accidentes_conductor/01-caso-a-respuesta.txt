@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><ERROR><DESCRIPCION>La cobertura no existe. No aplica para este producto. O no es valida para este negocio.</DESCRIPCION><CLAVE>12</CLAVE><ORIGEN>cotizador-eot</ORIGEN><FECHA>2026-09-10T18:29:20.962-06:00</FECHA></ERROR>

@@ -24,6 +24,7 @@ Fuera de las carpetas numeradas, en la raíz de `docs/`, viven documentos operat
 | [`02.7-plantillas-conectadas.md`](./02.7-plantillas-conectadas.md) | Conexión de las plantillas propias al flujo real de cotización — ya corrida y documentada |
 | [`02.8-deducible-en-coberturas.md`](./02.8-deducible-en-coberturas.md) | GNP sí acepta `<DEDUCIBLE>` en `<COBERTURA>` — probado, sin conectar (paso previo a `02.9`) |
 | [`02.9-deducible-conectado.md`](./02.9-deducible-conectado.md) | Deducible conectado de punta a punta (plantilla → GNP → `cot_opcionales`) — ya corrida y documentada |
+| [`02.10-rc-accidentes-conductor.md`](./02.10-rc-accidentes-conductor.md) | Accidentes al Conductor sobre Responsabilidad Civil: GNP la rechaza, `cat_coberturas` es correcta — cierra el pendiente que dejó abierto `02.6` |
 
 ---
 
@@ -67,7 +68,7 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 | Catálogo maestro comercial | 107 marcas · 7,777 submarcas |
 | Homologadas con GNP | 3,461 (44.5%) |
 | Procedencias verificadas | 1 de 7 (sólo Residentes, `01`) |
-| Llamadas registradas en bitácora | 70 |
+| Llamadas registradas en bitácora | 72 |
 
 ---
 
@@ -87,4 +88,4 @@ _(Beto, 2026-09-10)_ — Hallazgos de la revisión del repositorio. No son decis
 
 ---
 
-Última actualización: 2026-09-10 — se crea la biblioteca con ADR-001 a ADR-006; se agrega ADR-007 (módulo Juega y Compara, propuesto) y las pruebas `02.6` a `02.9` (coberturas modificadas, plantillas conectadas, deducible probado y deducible conectado) — el módulo queda **funcionalmente cerrado**, con el único pendiente deliberado siendo el punto 7 (multi-paquete + `<COBERTURAS>` en una sola llamada), sin fecha porque no lo necesita nadie todavía.
+Última actualización: 2026-09-10 — se crea la biblioteca con ADR-001 a ADR-006; se agrega ADR-007 (módulo Juega y Compara, propuesto) y las pruebas `02.6` a `02.10` (coberturas modificadas, plantillas conectadas, deducible probado y conectado, y Accidentes al Conductor confirmado como no soportado en Responsabilidad Civil) — el módulo queda **funcionalmente cerrado**, con el único pendiente deliberado siendo el punto 7 (multi-paquete + `<COBERTURAS>` en una sola llamada), sin fecha porque no lo necesita nadie todavía.

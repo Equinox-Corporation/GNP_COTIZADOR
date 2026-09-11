@@ -120,6 +120,8 @@ _(CC, 2026-09-10)_ — Implementado en `PlantillaServicio::validarCoberturas()`,
 
 ADR-005 punto 8 confirma que una sola llamada puede traer varios **paquetes tal cual de GNP** (Amplia, Premium, Amplia Total, Auto Elite) comparados lado a lado. No hay evidencia de que un paquete con `<COBERTURAS>` modificado pueda ir **dentro de la misma llamada** junto con los paquetes estándar. Si no se puede, el comparativo "mi paquete Equinox vs. los paquetes de GNP" necesita dos llamadas en vez de una — afecta tiempos de respuesta y hay que diseñar la pantalla para eso desde ahora, no como sorpresa después.
 
+**Requisito de negocio** _(Beto, 2026-09-10)_ — capturado a partir del caso real de "Equinox RC" sin Accidentes al Conductor (`docs/02.10-rc-accidentes-conductor.md`): cuando se construya este comparativo, cualquier cobertura que sea N/A para un paquete o plantilla debe imprimirse literalmente como **"N/A"** en su celda correspondiente — nunca en blanco ni omitida. Aplica tanto a comparar plantillas Equinox entre sí como a comparar una plantilla Equinox contra los paquetes estándar de GNP. _(CC, 2026-09-10 — nota capturada; no se tocó `ComparativoServicio` ni `PdfBasico` todavía.)_
+
 ## 🧩 Modelo de datos
 
 Ver punto 5. Se apoya en, sin modificar su estructura: `cat_coberturas`, `cat_coberturas_excluyentes`, `cat_paquetes`, y en la tabla nueva `cat_cobertura_valores` (el menú real de valores permitidos, ver punto 1).
