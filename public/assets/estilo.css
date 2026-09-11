@@ -125,7 +125,6 @@ input:focus, select:focus { outline: 2px solid var(--marca); outline-offset: 1px
   border: 1px solid var(--linea); border-radius: 999px; padding: .45rem .9rem;
   background: var(--papel); cursor: pointer; font-size: .9rem; color: var(--tinta);
 }
-.chip:has(input:checked) { border-color: var(--marca); background: var(--marca-sua); }
 .chip input { width: auto; margin: 0; }
 .chip small { color: var(--tinta-sua); font-size: .74rem; }
 .chip small.excl {
@@ -142,6 +141,7 @@ summary { cursor: pointer; font-size: .9rem; color: var(--marca); }
   border: 1px solid var(--linea); border-radius: 8px; padding: .5rem .8rem; background: var(--papel);
 }
 .fila-cobertura .chip { flex: 1 1 260px; border: none; padding: 0; background: none; }
+.chip:has(input:checked) { border-color: var(--marca); background: var(--marca-sua); }
 .campo-valor { display: flex; flex-direction: column; gap: .2rem; font-size: .78rem; color: var(--tinta-sua); margin: 0; }
 .campo-valor input { width: 130px; font-size: .88rem; }
 .btn.peligro { color: var(--err); }

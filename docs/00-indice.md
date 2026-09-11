@@ -24,7 +24,7 @@ Fuera de las carpetas numeradas, en la raíz de `docs/`, viven documentos operat
 | [`02.7-plantillas-conectadas.md`](./02.7-plantillas-conectadas.md) | Conexión de las plantillas propias al flujo real de cotización — ya corrida y documentada |
 | [`02.8-deducible-en-coberturas.md`](./02.8-deducible-en-coberturas.md) | GNP sí acepta `<DEDUCIBLE>` en `<COBERTURA>` — probado, sin conectar (paso previo a `02.9`) |
 | [`02.9-deducible-conectado.md`](./02.9-deducible-conectado.md) | Deducible conectado de punta a punta (plantilla → GNP → `cot_opcionales`) — ya corrida y documentada |
-| [`02.10-rc-accidentes-conductor.md`](./02.10-rc-accidentes-conductor.md) | Accidentes al Conductor sobre Responsabilidad Civil: GNP la rechaza, `cat_coberturas` es correcta — cierra el pendiente que dejó abierto `02.6` |
+| [`02.10-rc-accidentes-conductor.md`](./02.10-rc-accidentes-conductor.md) | Accidentes al Conductor sobre Responsabilidad Civil: GNP la rechaza, `cat_coberturas` es correcta — cierra el pendiente técnico que dejó abierto `02.6`. Decisión de negocio también cerrada (2026-09-11): el hueco en RC queda permanente, ya cubierto por Equinox Limitada |
 | [`02.11-multipaquete-plantillas.md`](./02.11-multipaquete-plantillas.md) | Dos plantillas con coberturas propias en una sola llamada: confirmado (ADR-007 punto 7). Deja dos hallazgos de datos abiertos, con impacto en las plantillas ya cargadas |
 | [`02.12-bug-amparada.md`](./02.12-bug-amparada.md) | Bug "Amparada" corregido, soporte permanente de `GnpClient` hecho, límite de antigüedad de "Siempre en Agencia" investigado y **cerrado** (regla genérica `antiguedad_max_anios`, decisión de Beto aplicada: avisar y cotizar sin la cobertura) |
 
