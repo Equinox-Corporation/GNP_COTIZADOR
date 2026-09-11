@@ -16,6 +16,7 @@
   <?php if (Auth::dentro()): ?>
     <nav>
       <a href="<?= h(url('historial')) ?>"<?= ($ruta ?? '') === 'historial' ? ' class="activo"' : '' ?>>Historial</a>
+      <a href="<?= h(url('juega-y-compara')) ?>"<?= ($ruta ?? '') === 'juega-y-compara' ? ' class="activo"' : '' ?>>Juega y Compara</a>
       <?php if (Auth::esAdmin()): ?>
         <a href="<?= h(url('usuarios')) ?>"<?= ($ruta ?? '') === 'usuarios' ? ' class="activo"' : '' ?>>Usuarios</a>
         <a href="<?= h(url('plantillas')) ?>"<?= ($ruta ?? '') === 'plantillas' ? ' class="activo"' : '' ?>>Paquetes propios</a>

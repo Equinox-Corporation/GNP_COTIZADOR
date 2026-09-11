@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><ERROR><DESCRIPCION>For input string: &quot;Amparada&quot; (122086860)</DESCRIPCION><CLAVE>37</CLAVE><ORIGEN>cotizador-eot</ORIGEN><FECHA>2026-09-10T19:05:10.294-06:00</FECHA></ERROR>

@@ -142,13 +142,13 @@ final class CatalogoServicio
      * cobertura que el paquete YA trae (Básica u Opcional) — no se puede
      * salir de este conjunto.
      *
-     * @return list<array{cve_cobertura:string,nombre:string,tipo:string,sa_valor:string,sa_unidad:string,ded_valor:string,ded_unidad:string,grupo_excl:string}>
+     * @return list<array{cve_cobertura:string,nombre:string,tipo:string,sa_valor:string,sa_unidad:string,ded_valor:string,ded_unidad:string,grupo_excl:string,antiguedad_max_anios:?int}>
      */
     public static function coberturasDe(string $grupo, string $paquete): array
     {
         return Db::todos(
             "SELECT c.cve_cobertura, c.nombre, c.tipo, c.sa_valor, c.sa_unidad, c.ded_valor, c.ded_unidad,
-                    COALESCE(x.grupo_excl, '') AS grupo_excl
+                    COALESCE(x.grupo_excl, '') AS grupo_excl, c.antiguedad_max_anios
                FROM cat_coberturas c
                LEFT JOIN cat_coberturas_excluyentes x ON x.cve_cobertura = c.cve_cobertura
               WHERE c.grupo = ? AND c.paquete = ?

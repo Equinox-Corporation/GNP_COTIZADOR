@@ -25,6 +25,8 @@ Fuera de las carpetas numeradas, en la raíz de `docs/`, viven documentos operat
 | [`02.8-deducible-en-coberturas.md`](./02.8-deducible-en-coberturas.md) | GNP sí acepta `<DEDUCIBLE>` en `<COBERTURA>` — probado, sin conectar (paso previo a `02.9`) |
 | [`02.9-deducible-conectado.md`](./02.9-deducible-conectado.md) | Deducible conectado de punta a punta (plantilla → GNP → `cot_opcionales`) — ya corrida y documentada |
 | [`02.10-rc-accidentes-conductor.md`](./02.10-rc-accidentes-conductor.md) | Accidentes al Conductor sobre Responsabilidad Civil: GNP la rechaza, `cat_coberturas` es correcta — cierra el pendiente que dejó abierto `02.6` |
+| [`02.11-multipaquete-plantillas.md`](./02.11-multipaquete-plantillas.md) | Dos plantillas con coberturas propias en una sola llamada: confirmado (ADR-007 punto 7). Deja dos hallazgos de datos abiertos, con impacto en las plantillas ya cargadas |
+| [`02.12-bug-amparada.md`](./02.12-bug-amparada.md) | Bug "Amparada" corregido, soporte permanente de `GnpClient` hecho, límite de antigüedad de "Siempre en Agencia" investigado y **cerrado** (regla genérica `antiguedad_max_anios`, decisión de Beto aplicada: avisar y cotizar sin la cobertura) |
 
 ---
 
@@ -55,7 +57,7 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 ## Propuestas en curso
 
-- **ADR-007 — Módulo Juega y Compara:** paquetes propios de Equinox armados sobre coberturas configurables de GNP. **Propuesto**, pendiente sólo de la firma formal de Producto/TI — funcionalmente **cerrado**: puntos 1 a 6 `[CONFIRMADO]` contra producción, incluida la conexión completa de plantillas (paquete, coberturas, suma asegurada y deducible) al flujo real de cotización. Único cabo suelto: el punto 7 (multi-paquete + `<COBERTURAS>` modificado en una sola llamada), tarea aparte sin fecha, sin que nadie lo necesite todavía. Detalle en [03_Decisiones/ADR-007](./03_Decisiones/ADR-007-modulo-juega-y-compara.md); las pruebas que lo sustentan en [`02.6`](./02.6-coberturas-modificadas.md), [`02.7`](./02.7-plantillas-conectadas.md), [`02.8`](./02.8-deducible-en-coberturas.md) y [`02.9`](./02.9-deducible-conectado.md).
+- **ADR-007 — Módulo Juega y Compara:** paquetes propios de Equinox armados sobre coberturas configurables de GNP. **Propuesto**, pendiente sólo de la firma formal de Producto/TI — sus **7 puntos** están `[CONFIRMADO]` contra producción, y el módulo "GNP Juega y Compara" (comparar varias plantillas a la vez, separado de "GNP Cotizador") **ya está construido y probado contra producción**: vista y rutas nuevas (`?r=juega-y-compara`), servicio nuevo `JuegaYCompararServicio`, y dos ajustes de esquema encontrados al construir (`cot_resultados.plantilla_id`, y su `UNIQUE` reconstruido porque dos plantillas reales comparten `cve_paquete`). Ya no queda ningún pendiente técnico. Detalle en [03_Decisiones/ADR-007](./03_Decisiones/ADR-007-modulo-juega-y-compara.md), sección "Paso 2"; las pruebas que lo sustentan en [`02.6`](./02.6-coberturas-modificadas.md) a [`02.12`](./02.12-bug-amparada.md).
 
 ---
 
@@ -63,12 +65,12 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 | | |
 |---|---|
-| Cotizaciones hechas contra producción | 21 (40 tarificaciones) |
+| Cotizaciones hechas contra producción | 26 (47 tarificaciones) |
 | Catálogo GNP descargado | 48,155 vehículos · 392 paquetes · 167 coberturas |
 | Catálogo maestro comercial | 107 marcas · 7,777 submarcas |
 | Homologadas con GNP | 3,461 (44.5%) |
 | Procedencias verificadas | 1 de 7 (sólo Residentes, `01`) |
-| Llamadas registradas en bitácora | 72 |
+| Llamadas registradas en bitácora | 97 |
 
 ---
 
@@ -88,4 +90,4 @@ _(Beto, 2026-09-10)_ — Hallazgos de la revisión del repositorio. No son decis
 
 ---
 
-Última actualización: 2026-09-10 — se crea la biblioteca con ADR-001 a ADR-006; se agrega ADR-007 (módulo Juega y Compara, propuesto) y las pruebas `02.6` a `02.10` (coberturas modificadas, plantillas conectadas, deducible probado y conectado, y Accidentes al Conductor confirmado como no soportado en Responsabilidad Civil) — el módulo queda **funcionalmente cerrado**, con el único pendiente deliberado siendo el punto 7 (multi-paquete + `<COBERTURAS>` en una sola llamada), sin fecha porque no lo necesita nadie todavía.
+Última actualización: 2026-09-10 — se crea la biblioteca con ADR-001 a ADR-006; se agrega ADR-007 (módulo Juega y Compara, propuesto) y las pruebas `02.6` a `02.12`. Con `02.12` se corrige el bug de `"Amparada"`, se hace permanente el soporte de `GnpClient` a coberturas por paquete, y se cierra de forma genérica el límite de antigüedad de "Siempre en Agencia" (se omite y se avisa, decisión de Beto). Con los tres pendientes cerrados de verdad, se construye el módulo nuevo "GNP Juega y Compara" (Paso 2 de ADR-007): vista y rutas propias, servicio `JuegaYCompararServicio`, y un ajuste de esquema en `cot_resultados` (columna `plantilla_id` + `UNIQUE` reconstruido) encontrado al comprobar que dos plantillas reales comparten `cve_paquete` de GNP.

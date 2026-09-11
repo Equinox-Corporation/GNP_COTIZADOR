@@ -75,8 +75,16 @@ final class ComparativoServicio
      * paquete, en el orden en que GNP las devolvió. Igual que "Qué cubre cada
      * uno" en pantalla (resultado.php).
      *
+     * También entran las omitidas (por antigüedad u otra regla — ver
+     * docs/02.12-bug-amparada.md): si no, una cobertura que ningún paquete
+     * comparado devolvió de GNP desaparecería del reporte sin explicación,
+     * justo lo que prohíbe el requisito de negocio de ADR-007 punto 7. Se
+     * marcan con `omitida: true` para que `pdf()`/`csv()` las impriman como
+     * "N/A", distinto de una cobertura que simplemente no es parte del
+     * paquete ("No incluida").
+     *
      * @param list<array> $resultados
-     * @return list<array{0:string,1:list<array{suma:string,ded:string}|null>}>
+     * @return list<array{0:string,1:list<array{suma:string,ded:string,omitida?:bool}|null>}>
      */
     private static function filasCoberturas(array $resultados): array
     {
@@ -85,12 +93,19 @@ final class ComparativoServicio
             foreach ($r['coberturas'] as $c) {
                 $nombres[$c['cve_cobertura']] = $c['nombre'];
             }
+            foreach ($r['omitidas'] ?? [] as $o) {
+                $nombres[$o['cve_cobertura']] ??= $o['nombre'];
+            }
         }
 
         $porPaquete = [];
+        $omitidaPorPaquete = [];
         foreach ($resultados as $i => $r) {
             foreach ($r['coberturas'] as $c) {
                 $porPaquete[$i][$c['cve_cobertura']] = $c;
+            }
+            foreach ($r['omitidas'] ?? [] as $o) {
+                $omitidaPorPaquete[$i][$o['cve_cobertura']] = true;
             }
         }
 
@@ -99,7 +114,13 @@ final class ComparativoServicio
             $valores = [];
             foreach ($resultados as $i => $r) {
                 $c = $porPaquete[$i][$cve] ?? null;
-                $valores[] = $c === null ? null : ['suma' => (string) ($c['suma_asegurada'] ?: 'Amparada'), 'ded' => (string) $c['deducible']];
+                if ($c !== null) {
+                    $valores[] = ['suma' => (string) ($c['suma_asegurada'] ?: 'Amparada'), 'ded' => (string) $c['deducible']];
+                } elseif ($omitidaPorPaquete[$i][$cve] ?? false) {
+                    $valores[] = ['suma' => 'N/A', 'ded' => '', 'omitida' => true];
+                } else {
+                    $valores[] = null;
+                }
             }
             $filas[] = [$nombre, $valores];
         }

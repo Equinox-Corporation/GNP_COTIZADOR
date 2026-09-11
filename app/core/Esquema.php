@@ -238,6 +238,21 @@ CREATE TABLE IF NOT EXISTS cot_resultado_coberturas (
 );
 CREATE INDEX IF NOT EXISTS ix_rescob ON cot_resultado_coberturas (resultado_id, orden);
 
+-- Coberturas de una plantilla que NO se transmitieron a GNP para este
+-- resultado (ej. "Siempre en Agencia" fuera de rango de antigüedad — ver
+-- docs/02.12-bug-amparada.md). Hermana de cot_resultado_coberturas, para el
+-- caso contrario: nunca se le oculta al vendedor que algo se dejó fuera,
+-- aunque ningún otro paquete comparado la traiga (módulo "Juega y Compara").
+CREATE TABLE IF NOT EXISTS cot_resultado_omitidas (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    resultado_id   INTEGER NOT NULL REFERENCES cot_resultados(id) ON DELETE CASCADE,
+    cve_cobertura  TEXT    NOT NULL,
+    nombre         TEXT    NOT NULL,
+    motivo         TEXT    NOT NULL,
+    orden          INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_resomi ON cot_resultado_omitidas (resultado_id, orden);
+
 -- Coberturas opcionales que el vendedor pidió agregar.
 CREATE TABLE IF NOT EXISTS cot_opcionales (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -361,6 +376,84 @@ SQL);
         if (!in_array('plantilla_id', $hay, true)) {
             $pdo->exec('ALTER TABLE cot_opcionales ADD COLUMN plantilla_id INTEGER NULL REFERENCES cat_plantillas(id)');
         }
+
+        // 10-sep-2026: regla genérica de antigüedad máxima, no un caso
+        // especial de "Siempre en Agencia" — cualquier cobertura puede tener
+        // un límite de antigüedad del vehículo; hoy sólo una lo usa.
+        // NULL = sin restricción de antigüedad (todas las demás coberturas).
+        // Regla confirmada contra producción (docs/02.12-bug-amparada.md):
+        // se acepta si MODELO >= año de vigencia − antiguedad_max_anios.
+        if (!in_array('antiguedad_max_anios', $columnas('cat_coberturas'), true)) {
+            $pdo->exec('ALTER TABLE cat_coberturas ADD COLUMN antiguedad_max_anios INTEGER NULL');
+        }
+
+        // 10-sep-2026: módulo "GNP Juega y Compara" (Paso 2, ADR-007) —
+        // comparar varias plantillas en una sola cotización. `plantilla_id`
+        // dice de qué plantilla salió cada renglón de `cot_resultados`; NULL
+        // para "GNP Cotizador" de siempre (flujo manual), que no cambia.
+        //
+        // Requiere reconstruir la tabla: dos de las cuatro plantillas Equinox
+        // reales (Amplia Plus y Amplia) comparten el mismo `cve_paquete` de
+        // GNP (ver docs/02-carga de plantillas), así que el
+        // UNIQUE(cotizacion_id, cve_paquete) original ya no puede sostenerse
+        // tal cual — bloquearía comparar esas dos plantillas en la misma
+        // cotización. No se reemplaza por un UNIQUE de tres columnas porque
+        // SQLite trata cada NULL como distinto entre sí en un índice único
+        // (`plantilla_id` es NULL en todo el flujo manual), así que un
+        // UNIQUE(cotizacion_id, cve_paquete, plantilla_id) no protegería nada
+        // ahí — y esta unicidad nunca se aprovechó con `ON CONFLICT` en
+        // `CotizacionServicio::guardarResultados()`, sólo era una red de
+        // seguridad. La duplicidad de paquete dentro de una misma cotización
+        // la evita la pantalla (no se puede marcar el mismo paquete dos
+        // veces), no la base.
+        if (!in_array('plantilla_id', $columnas('cot_resultados'), true)) {
+            $pdo->exec('PRAGMA foreign_keys = OFF');
+            // v_cotizaciones cuenta sobre cot_resultados por subconsulta: si no se
+            // quita antes de tirar la tabla, queda una vista colgando de una tabla
+            // que ya no existe y el RENAME de abajo truena al validar el esquema.
+            $pdo->exec('DROP VIEW IF EXISTS v_cotizaciones');
+            $pdo->exec(<<<'SQL'
+CREATE TABLE cot_resultados_nuevo (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    cotizacion_id  INTEGER NOT NULL REFERENCES cot_cotizaciones(id) ON DELETE CASCADE,
+    cve_paquete    TEXT    NOT NULL,
+    paquete        TEXT    NOT NULL,
+    prima_tecnica  REAL    NULL,
+    prima_neta     REAL    NULL,
+    derechos       REAL    NULL,
+    iva            REAL    NULL,
+    descuento      REAL    NULL,
+    total_pagar    REAL    NULL,
+    num_pagos      INTEGER NULL,
+    conceptos_json TEXT    NOT NULL DEFAULT '{}',
+    plantilla_id   INTEGER NULL REFERENCES cat_plantillas(id)
+)
+SQL);
+            $pdo->exec(
+                'INSERT INTO cot_resultados_nuevo
+                    (id, cotizacion_id, cve_paquete, paquete, prima_tecnica, prima_neta,
+                     derechos, iva, descuento, total_pagar, num_pagos, conceptos_json)
+                 SELECT id, cotizacion_id, cve_paquete, paquete, prima_tecnica, prima_neta,
+                        derechos, iva, descuento, total_pagar, num_pagos, conceptos_json
+                   FROM cot_resultados'
+            );
+            $pdo->exec('DROP TABLE cot_resultados');
+            $pdo->exec('ALTER TABLE cot_resultados_nuevo RENAME TO cot_resultados');
+            $pdo->exec(
+                "CREATE VIEW v_cotizaciones AS
+                 SELECT  c.id, c.folio, c.estado, c.creada_en, c.vence_en,
+                         c.descripcion_veh, c.modelo, c.tipo_persona, c.procedencia,
+                         c.contratante, c.conductor_edad, c.conductor_cp,
+                         (SELECT COUNT(*) FROM cot_resultados r WHERE r.cotizacion_id = c.id)        AS paquetes,
+                         (SELECT MIN(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS desde,
+                         (SELECT MAX(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS hasta,
+                         (SELECT COUNT(*) FROM cot_documentos d WHERE d.cotizacion_id = c.id)        AS pdfs,
+                         CASE WHEN c.vence_en IS NULL THEN NULL
+                              WHEN date(c.vence_en) < date('now','localtime') THEN 1 ELSE 0 END      AS vencida
+                 FROM    cot_cotizaciones c"
+            );
+            $pdo->exec('PRAGMA foreign_keys = ON');
+        }
     }
 
     /** Datos que el sistema necesita para arrancar y no vienen del API. */
@@ -383,6 +476,13 @@ SQL);
         ] as $g) {
             $ex->execute($g);
         }
+
+        // Antigüedad máxima confirmada contra producción el 10-sep-2026
+        // (docs/02.12-bug-amparada.md): "Siempre en Agencia" se acepta si
+        // MODELO >= año de vigencia − 4; con 3 (2021 rechazado) ya no.
+        // Aparece en 3 paquetes (Amplia, Premium, Amplia Total) — misma
+        // clave, misma regla en los tres.
+        $pdo->exec("UPDATE cat_coberturas SET antiguedad_max_anios = 4 WHERE cve_cobertura = '0000001473'");
 
         // Sólo Residentes está verificado contra el servicio (cotización 02.1 del 18-ago).
         // Los demás sub_ramo hay que confirmarlos con GNP antes de ofrecerlos.

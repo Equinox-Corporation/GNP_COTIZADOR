@@ -2,16 +2,30 @@
 /** @var array $cot @var array $resultados @var array $documentos @var bool $vencida @var string $aviso */
 
 // Todas las coberturas que aparecen en algún paquete, para armar la tabla comparativa.
+// También entran las omitidas (por antigüedad u otra regla — ver
+// docs/02.12-bug-amparada.md): si no, una cobertura que ningún paquete
+// comparado devolvió de GNP desaparecería de la tabla sin explicación,
+// justo lo que el requisito de negocio de ADR-007 punto 7 prohíbe.
 $filas = [];
-foreach ($resultados as $r) {
+foreach ($resultados as $i => $r) {
     foreach ($r['coberturas'] as $c) {
         $filas[$c['cve_cobertura']] = $c['nombre'];
     }
+    foreach ($r['omitidas'] ?? [] as $o) {
+        $filas[$o['cve_cobertura']] ??= $o['nombre'];
+    }
 }
 $porPaquete = [];
-foreach ($resultados as $r) {
+$omitidaPorPaquete = [];
+foreach ($resultados as $i => $r) {
+    // La clave del paquete es su índice, no cve_paquete: dos plantillas
+    // reales (Equinox Amplia Plus y Equinox Amplia) comparten la misma
+    // clave de paquete de GNP — usar cve_paquete mezclaría sus columnas.
     foreach ($r['coberturas'] as $c) {
-        $porPaquete[$r['cve_paquete']][$c['cve_cobertura']] = $c;
+        $porPaquete[$i][$c['cve_cobertura']] = $c;
+    }
+    foreach ($r['omitidas'] ?? [] as $o) {
+        $omitidaPorPaquete[$i][$o['cve_cobertura']] = $o['motivo'];
     }
 }
 $barato = $resultados[0] ?? null;
@@ -23,8 +37,11 @@ $barato = $resultados[0] ?? null;
   // Tres tonos, no dos: "salió bien", "salió pero revísalo" y "no salió".
   // Un aviso de captura —menor de edad, paquetes incompletos— no es un error:
   // pintarlo de rojo hace que el vendedor deje de leerlos.
+  // "no aplica" cubre el aviso de cobertura omitida por regla del vehículo
+  // (ej. antigüedad de "Siempre en Agencia" — docs/02.12-bug-amparada.md):
+  // la cotización sí salió, sólo hay que leer por qué faltó una cobertura.
   $tono = str_contains($aviso, 'generado')                        ? 'ok'
-        : (preg_match('/Advertencia|menor de Edad|Ojo|revisar|se pidieron/iu', $aviso) ? 'alerta' : 'error');
+        : (preg_match('/Advertencia|menor de Edad|Ojo|revisar|se pidieron|no aplica/iu', $aviso) ? 'alerta' : 'error');
 ?>
   <div class="aviso <?= $tono ?>"><?= h($aviso) ?></div>
 <?php endif; ?>
@@ -117,11 +134,16 @@ $barato = $resultados[0] ?? null;
     <?php foreach ($filas as $cve => $nombre): ?>
       <tr>
         <th scope="row"><?= h($nombre) ?></th>
-        <?php foreach ($resultados as $r):
-              $c = $porPaquete[$r['cve_paquete']][$cve] ?? null; ?>
+        <?php foreach ($resultados as $i => $r):
+              $c      = $porPaquete[$i][$cve] ?? null;
+              $motivo = $omitidaPorPaquete[$i][$cve] ?? null; ?>
           <td<?= $c === null ? ' class="no"' : '' ?>>
             <?php if ($c === null): ?>
-              no incluida
+              <?php if ($motivo !== null): ?>
+                <strong title="<?= h($motivo) ?>">N/A</strong>
+              <?php else: ?>
+                no incluida
+              <?php endif; ?>
             <?php else: ?>
               <strong><?= h($c['suma_asegurada'] ?: 'Amparada') ?></strong>
               <?php if (trim((string) $c['deducible']) !== ''): ?>

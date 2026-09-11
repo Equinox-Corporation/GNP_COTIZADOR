@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<COTIZACION>
+   <SOLICITUD>
+      <USUARIO>AESPIN870946</USUARIO>
+      <PASSWORD>***</PASSWORD>
+      <ID_UNIDAD_OPERABLE>NOP0000016</ID_UNIDAD_OPERABLE>
+      <FCH_INICIO_VIGENCIA>20260910</FCH_INICIO_VIGENCIA>
+      <FCH_FIN_VIGENCIA>20270910</FCH_FIN_VIGENCIA>
+      <VIA_PAGO>IN</VIA_PAGO>
+      <PERIODICIDAD>A</PERIODICIDAD>
+      <ELEMENTOS>
+         <ELEMENTO>
+            <NOMBRE>INTERMEDIARIO</NOMBRE>
+            <CLAVE>0073367001</CLAVE>
+            <VALOR>0073367001</VALOR>
+         </ELEMENTO>
+      </ELEMENTOS>
+   </SOLICITUD>
+   <VEHICULO>
+      <SUB_RAMO>01</SUB_RAMO>
+      <TIPO_VEHICULO>AUT</TIPO_VEHICULO>
+      <MODELO>2015</MODELO>
+      <ARMADORA>HO</ARMADORA>
+      <CARROCERIA>06</CARROCERIA>
+      <VERSION>14</VERSION>
+      <USO>01</USO>
+      <FORMA_INDEMNIZACION>03</FORMA_INDEMNIZACION>
+      <VALOR_FACTURA/>
+   </VEHICULO>
+   <CONTRATANTE>
+      <TIPO_PERSONA>F</TIPO_PERSONA>
+      <EDAD>50</EDAD>
+      <CVE_CLIENTE_ORIGEN>0000000000</CVE_CLIENTE_ORIGEN>
+      <CODIGO_POSTAL>76000</CODIGO_POSTAL>
+   </CONTRATANTE>
+   <CONDUCTOR>
+      <FCH_NACIMIENTO>19830101</FCH_NACIMIENTO>
+      <SEXO>M</SEXO>
+      <EDAD>43</EDAD>
+      <CODIGO_POSTAL>04200</CODIGO_POSTAL>
+   </CONDUCTOR>
+   <PAQUETES>
+      <PAQUETE>
+         <CVE_PAQUETE>PRS0009355</CVE_PAQUETE>
+         <DESC_PAQUETE>Equinox Amplia Plus</DESC_PAQUETE>
+         <COBERTURAS>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001289</CVE_COBERTURA>
+               <NOMBRE>Daños Materiales Pérdida Parcial</NOMBRE>
+               <DEDUCIBLE>3</DEDUCIBLE>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001288</CVE_COBERTURA>
+               <NOMBRE>Daños Materiales Pérdida Total</NOMBRE>
+               <DEDUCIBLE>3</DEDUCIBLE>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000000916</CVE_COBERTURA>
+               <NOMBRE>Robo Total</NOMBRE>
+               <DEDUCIBLE>5</DEDUCIBLE>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001273</CVE_COBERTURA>
+               <NOMBRE>Responsabilidad Civil por Daños a Terceros</NOMBRE>
+               <SUMA_ASEGURADA>3000000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000000906</CVE_COBERTURA>
+               <NOMBRE>Gastos Médicos Ocupantes</NOMBRE>
+               <SUMA_ASEGURADA>300000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001285</CVE_COBERTURA>
+               <NOMBRE>Protección Legal</NOMBRE>
+               <SUMA_ASEGURADA>3000000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001452</CVE_COBERTURA>
+               <NOMBRE>Responsabilidad Civil Fallecimiento</NOMBRE>
+               <SUMA_ASEGURADA>2000000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000000893</CVE_COBERTURA>
+               <NOMBRE>Accidentes al Conductor</NOMBRE>
+               <SUMA_ASEGURADA>100000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001268</CVE_COBERTURA>
+               <NOMBRE>Club GNP</NOMBRE>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001462</CVE_COBERTURA>
+               <NOMBRE>Robo Parcial Plus *</NOMBRE>
+               <DEDUCIBLE>25</DEDUCIBLE>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001470</CVE_COBERTURA>
+               <NOMBRE>Ayuda Llantas/Rines</NOMBRE>
+               <SUMA_ASEGURADA>25000</SUMA_ASEGURADA>
+               <DEDUCIBLE>25</DEDUCIBLE>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001689</CVE_COBERTURA>
+               <NOMBRE>Eliminacion de Deducible en Perdidas Parciales</NOMBRE>
+            </COBERTURA>
+         </COBERTURAS>
+      </PAQUETE>
+      <PAQUETE>
+         <CVE_PAQUETE>PRS0009356</CVE_PAQUETE>
+         <DESC_PAQUETE>Equinox Limitada</DESC_PAQUETE>
+         <COBERTURAS>
+            <COBERTURA>
+               <CVE_COBERTURA>0000000916</CVE_COBERTURA>
+               <NOMBRE>Robo Total</NOMBRE>
+               <DEDUCIBLE>5</DEDUCIBLE>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001273</CVE_COBERTURA>
+               <NOMBRE>Responsabilidad Civil por Daños a Terceros</NOMBRE>
+               <SUMA_ASEGURADA>3000000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000000906</CVE_COBERTURA>
+               <NOMBRE>Gastos Médicos Ocupantes</NOMBRE>
+               <SUMA_ASEGURADA>300000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001285</CVE_COBERTURA>
+               <NOMBRE>Protección Legal</NOMBRE>
+               <SUMA_ASEGURADA>3000000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001452</CVE_COBERTURA>
+               <NOMBRE>Responsabilidad Civil Fallecimiento</NOMBRE>
+               <SUMA_ASEGURADA>2000000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000000893</CVE_COBERTURA>
+               <NOMBRE>Accidentes al Conductor</NOMBRE>
+               <SUMA_ASEGURADA>100000</SUMA_ASEGURADA>
+            </COBERTURA>
+            <COBERTURA>
+               <CVE_COBERTURA>0000001268</CVE_COBERTURA>
+               <NOMBRE>Club GNP</NOMBRE>
+            </COBERTURA>
+         </COBERTURAS>
+      </PAQUETE>
+   </PAQUETES>
+</COTIZACION>

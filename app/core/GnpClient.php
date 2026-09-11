@@ -132,8 +132,16 @@ final class GnpClient
      * Cotizar NO emite póliza: sólo devuelve primas.
      *
      * @param array $d  vehículo, contratante, conductor, vigencia, periodicidad
-     * @param list<array{cve:string,desc:string}> $paquetes
+     * @param list<array{cve:string,desc:string,opcionales?:list<array{cve:string,nombre?:string,suma?:string,deducible?:string}>}> $paquetes
+     *        cada elemento puede traer su propio `opcionales` — si no lo trae,
+     *        usa el `$opcionales` compartido de abajo. Verificado contra
+     *        producción el 10 de septiembre de 2026 (docs/02.11-multipaquete-plantillas.md):
+     *        varios `<PAQUETE>`, cada uno con su propio `<COBERTURAS>`, conviven
+     *        en una sola llamada sin contaminarse entre sí.
      * @param list<array{cve:string,nombre?:string,suma?:string,deducible?:string}> $opcionales
+     *        compartido por todos los paquetes que no traigan su propio `opcionales`
+     *        — es el caso normal de un solo paquete, o de varios paquetes estándar
+     *        de GNP sin coberturas modificadas (ADR-005 punto 8).
      */
     public function cotizar(array $d, array $paquetes, array $opcionales = []): array
     {
@@ -209,10 +217,20 @@ final class GnpClient
 
         $xml .= "   <PAQUETES>\n";
         foreach ($paquetes as $p) {
+            // Cada paquete puede traer sus propias coberturas — necesario
+            // para comparar varias plantillas Equinox distintas en una sola
+            // llamada (módulo Juega y Compara). Si no trae las suyas, usa el
+            // $opcionales compartido: el caso normal de un solo paquete, o
+            // de varios paquetes estándar de GNP sin modificar (ADR-005
+            // punto 8). Verificado contra producción el 10-sep-2026
+            // (docs/02.11-multipaquete-plantillas.md): no hay contaminación
+            // cruzada entre las coberturas de un paquete y las de otro.
+            $opcionalesDelPaquete = $p['opcionales'] ?? $opcionales;
+
             $xml .= "      <PAQUETE>\n";
             $xml .= '         <CVE_PAQUETE>' . $e($p['cve']) . "</CVE_PAQUETE>\n";
             $xml .= '         <DESC_PAQUETE>' . $e($p['desc']) . "</DESC_PAQUETE>\n";
-            if ($opcionales === []) {
+            if ($opcionalesDelPaquete === []) {
                 $xml .= "         <COBERTURAS/>\n";
             } else {
                 // Forma verificada contra producción el 25 de agosto de 2026:
@@ -224,7 +242,7 @@ final class GnpClient
                 // UDMSA sólo admite "IMPT" o "PORC" y hay coberturas medidas en
                 // días (Auto Sustituto). Esta forma no tiene ese problema.
                 $xml .= "         <COBERTURAS>\n";
-                foreach ($opcionales as $c) {
+                foreach ($opcionalesDelPaquete as $c) {
                     $xml .= "            <COBERTURA>\n";
                     $xml .= '               <CVE_COBERTURA>' . $e($c['cve']) . "</CVE_COBERTURA>\n";
                     if (($c['nombre'] ?? '') !== '') {

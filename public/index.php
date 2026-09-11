@@ -21,7 +21,7 @@ define('BASE_URL', rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] 
 foreach (['core/Esquema', 'core/Db', 'core/Auth', 'core/GnpClient', 'core/PdfBasico',
           'servicios/CatalogoServicio', 'servicios/CotizacionServicio', 'servicios/ImpresionServicio',
           'servicios/EvidenciaServicio', 'servicios/UsuarioServicio', 'servicios/ComparativoServicio',
-          'servicios/PlantillaServicio'] as $c) {
+          'servicios/PlantillaServicio', 'servicios/JuegaYCompararServicio'] as $c) {
     require RUTA_APP . '/' . $c . '.php';
 }
 
@@ -497,6 +497,119 @@ switch ($ruta) {
     case 'plantillas/api-coberturas':
         Auth::exigirAdmin();
         json(['datos' => PlantillaServicio::coberturasDisponibles((string) ($_GET['cve_paquete'] ?? ''))]);
+
+    // ─── Módulo "GNP Juega y Compara" — comparar varias plantillas a la vez ──
+    //
+    // Ruta nueva y aparte de 'cotizar' (ADR-007, Paso 2): "GNP Cotizador" (la
+    // ruta 'cotizar', con su selección manual de paquetes y su "usar
+    // plantilla propia") no se toca. Aquí SIEMPRE se eligen una o más
+    // plantillas — nunca paquetes sueltos — y se cotizan todas en una sola
+    // llamada, lado a lado. Comparte pantalla de resultado con 'cotizar'
+    // (misma tabla comparativa, mismo cot_cotizaciones/cot_resultados).
+    case 'juega-y-compara':
+        if (!$post) {
+            vista('juega_y_compara', [
+                'diag'         => CatalogoServicio::diagnostico(),
+                'procedencias' => CatalogoServicio::procedencias(),
+                'plantillas'   => PlantillaServicio::activas(),
+                'error'        => '',
+                'previo'       => [],
+            ]);
+            exit;
+        }
+
+        if (!Auth::tokenValido($_POST['_t'] ?? null)) {
+            vista('juega_y_compara', [
+                'diag' => CatalogoServicio::diagnostico(), 'procedencias' => CatalogoServicio::procedencias(),
+                'plantillas' => PlantillaServicio::activas(),
+                'error' => 'La sesión expiró. Vuelve a enviar el formulario.', 'previo' => $_POST,
+            ]);
+            exit;
+        }
+
+        // Mismo shape de $f que la ruta 'cotizar' — JuegaYCompararServicio lo
+        // espera igual. Se repite aquí en vez de compartir código con esa
+        // ruta a propósito: 'cotizar' no se toca (ver comentario de arriba).
+        $fjc = [
+            'tipo_vehiculo'    => (string) ($_POST['tipo_vehiculo'] ?? 'AUT'),
+            'armadora'         => (string) ($_POST['armadora'] ?? ''),
+            'carroceria'       => (string) ($_POST['carroceria'] ?? ''),
+            'modelo'           => (int) ($_POST['modelo'] ?? 0),
+            'version'          => (string) ($_POST['version'] ?? ''),
+            'procedencia'      => (string) ($_POST['procedencia'] ?? 'Residentes'),
+            'tipo_persona'     => (string) ($_POST['tipo_persona'] ?? 'F'),
+            'nombres'          => trim((string) ($_POST['nombres'] ?? '')),
+            'apellido_paterno' => trim((string) ($_POST['apellido_paterno'] ?? '')),
+            'apellido_materno' => trim((string) ($_POST['apellido_materno'] ?? '')),
+            'contratante_rfc'  => strtoupper(trim((string) ($_POST['contratante_rfc'] ?? ''))),
+            'conductor_edad'   => (int) ($_POST['conductor_edad'] ?? 0),
+            'conductor_cp'     => trim((string) ($_POST['conductor_cp'] ?? '')),
+            'conductor_sexo'   => (string) ($_POST['conductor_sexo'] ?? 'M'),
+            'conductor_nacimiento' => preg_replace('/\D/', '', (string) ($_POST['conductor_nacimiento'] ?? '')) ?: '',
+            'correo'           => trim((string) ($_POST['correo'] ?? '')),
+            'periodicidad'     => (string) ($_POST['periodicidad'] ?? 'A'),
+        ];
+        // El contratante hereda edad y CP del conductor — mismo criterio y
+        // misma razón que en 'cotizar' (ver el comentario grande de esa ruta).
+        $fjc['contratante_edad'] = $fjc['conductor_edad'];
+        $fjc['contratante_cp']   = $fjc['conductor_cp'];
+
+        $plantillaIdsJc = array_map('intval', array_values(array_filter((array) ($_POST['plantillas'] ?? []))));
+
+        $faltanJc = [];
+        if ($fjc['armadora'] === '' || $fjc['carroceria'] === '' || $fjc['version'] === '' || $fjc['modelo'] === 0) {
+            $faltanJc[] = 'el vehículo completo (marca, línea, año y versión)';
+        }
+        if ($plantillaIdsJc === []) {
+            $faltanJc[] = 'al menos una plantilla para comparar';
+        }
+        if ($fjc['conductor_edad'] <= 0 || $fjc['conductor_cp'] === '') {
+            $faltanJc[] = 'la edad y el código postal del solicitante — son los que determinan el precio';
+        }
+        if ($faltanJc !== []) {
+            vista('juega_y_compara', [
+                'diag' => CatalogoServicio::diagnostico(), 'procedencias' => CatalogoServicio::procedencias(),
+                'plantillas' => PlantillaServicio::activas(),
+                'error' => 'Falta ' . implode('; falta ', $faltanJc) . '.', 'previo' => $_POST,
+            ]);
+            exit;
+        }
+
+        // Misma lógica de edad-vs-fecha que 'cotizar' (ver el comentario
+        // grande de esa ruta): la EDAD manda, la fecha es sólo comodidad.
+        $nacJc = $fjc['conductor_nacimiento'];
+        $coherenteJc = strlen($nacJc) === 8
+            && ($dJc = DateTimeImmutable::createFromFormat('Ymd', $nacJc)) !== false
+            && (int) $dJc->diff(new DateTimeImmutable('today'))->y === $fjc['conductor_edad'];
+        if (!$coherenteJc) {
+            $fjc['conductor_nacimiento'] = (string) (date('Y') - $fjc['conductor_edad']) . '0101';
+        }
+
+        $avisosJc = [];
+        if ($fjc['conductor_edad'] < 18) {
+            $avisosJc[] = '¡Advertencia! El Solicitante es menor de Edad ('
+                        . $fjc['conductor_edad'] . ' años). La edad mínima para contratar es 18: '
+                        . 'si no es un caso de excepción, hay que revisar el dato antes de presentar esta cotización.';
+        }
+
+        $resJc = JuegaYCompararServicio::cotizar($fjc, $plantillaIdsJc);
+
+        if (!$resJc['ok']) {
+            vista('juega_y_compara', [
+                'diag' => CatalogoServicio::diagnostico(), 'procedencias' => CatalogoServicio::procedencias(),
+                'plantillas' => PlantillaServicio::activas(),
+                'error' => $resJc['mensaje'], 'previo' => $_POST,
+            ]);
+            exit;
+        }
+        if (($resJc['mensaje'] ?? '') !== '') {
+            $avisosJc[] = $resJc['mensaje'];
+        }
+
+        redirigir('resultado', array_filter([
+            'id'    => $resJc['cotizacion_id'],
+            'aviso' => implode(' ', $avisosJc),
+        ]));
 
     default:
         redirigir('cotizar');

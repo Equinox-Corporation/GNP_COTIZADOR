@@ -43,6 +43,8 @@ cat_coberturas                167   qué coberturas trae cada paquete (Básica/O
 cat_coberturas_excluyentes      3   pares que no pueden ir juntos (ej. Robo Parcial / Plus)
 cat_cobertura_valores          225   el menú real de valores permitidos por cobertura (agregada 2026-09-10, módulo Juega y Compara)
 cat_procedencias                7   Residentes, Legalizados, Fronterizos… sólo 1 verificada
+cat_plantillas                   5   paquetes propios de Equinox (agregada 2026-09-10, módulo Juega y Compara) ⚠️ ver nota
+cat_plantilla_coberturas        37   coberturas de cada plantilla, con su valor elegido ⚠️ ver nota
 
 cot_cotizaciones               15   una por cotización hecha
 cot_resultados                 35   una por paquete tarificado dentro de una cotización
@@ -55,6 +57,8 @@ sys_llamadas                   56   XML de ida y vuelta de cada llamada
 ```
 
 > ⚠️ _(CC, 2026-09-10)_ — La fila de `cat_coberturas` de arriba decía antes "catálogo de coberturas con sus valores permitidos". No es exacto: `cat_coberturas` sólo trae **un** valor por combinación (grupo, paquete, cobertura) — el default de ese paquete, no el menú de opciones. El menú real vive aparte, en la tabla nueva `cat_cobertura_valores` (ver [ADR-007](../03_Decisiones/ADR-007-modulo-juega-y-compara.md) punto 1). Se corrige aquí con nota fechada, sin reescribir la tabla de arriba — el resto de los conteos sigue siendo el corte original.
+
+> ⚠️ _(CC, 2026-09-10)_ — **`cat_plantillas` y `cat_plantilla_coberturas` son la excepción dentro de esta base.** Todo lo demás en `cotizador_gnp.sqlite` es `cat_*` (espejo de GNP, se regenera bajando el catálogo otra vez), `cot_*` (instancias de cotización) o `sys_*` (usuarios y bitácora) — nada de eso es irrecuperable si se pierde el archivo, sólo hay que volver a correr los scripts de carga contra GNP. Estas dos tablas no: son **contenido de negocio propio** (las plantillas de paquetes de Equinox — Amplia Plus, Amplia, Limitada, RC/Básica — y la que arme Producto para "Equinox Agente de Seguros y de Fianzas"), con el mismo perfil de riesgo que este ADR ya describe para `cat_comercial.db` en la sección de Riesgos: si se pierde el archivo sin respaldo, no se "vuelve a bajar de GNP" — se pierde el trabajo de captura. La diferencia es que, a diferencia de `cat_comercial.db` (sin script de reproducción, sólo respaldos manuales), estas dos **sí tienen script de reproducción**: `app/scripts/cargar_plantillas_equinox.php`, idempotente, que reconstruye las 4 plantillas reales desde su definición en código. Vale la pena tenerlo presente si en el futuro se decide una política de respaldo automático: qué tan seguido respaldar cada tabla depende de si su contenido se puede reconstruir corriendo un script, o no.
 
 **Una cotización tiene N resultados.** Es la consecuencia directa de que GNP acepte varios paquetes en una sola llamada: se pide una vez y se guardan todos los planes tarificados, comparables entre sí.
 
@@ -128,6 +132,7 @@ El corazón del asunto es esta cadena:
 | **`app/core/*.db` no está en `.gitignore`** | Sólo `datos/*.sqlite` lo está. El catálogo maestro y sus respaldos pueden acabar commiteados |
 | **55.5% del catálogo maestro sin homologar** | 4,316 submarcas que hoy no se pueden cotizar en GNP |
 | **`cat_comercial_diseño.md` está desactualizado** | Dice 110 marcas, 7,941 submarcas y mapeo en NULL. Es lo primero que leería alguien nuevo |
+| **`cat_plantillas`/`cat_plantilla_coberturas` viven en `cotizador_gnp.sqlite`, que "se puede regenerar" — pero ellas no** | Son contenido de negocio, no espejo de GNP. Mitigado por tener script de reproducción (`app/scripts/cargar_plantillas_equinox.php`), a diferencia de `cat_comercial.db` — ver nota del punto 2 |
 
 ## 🛡️ Mitigaciones
 
@@ -140,7 +145,7 @@ El corazón del asunto es esta cadena:
 - **Conectar la homologación al flujo de cotización** — el paso que falta para que el catálogo maestro sirva de verdad.
 - **Homologar Zurich, Momento y EBC** con el mismo motor; las columnas ya están.
 - **Versión de vehículo.** La homologación de hoy llega a marca + submarca (línea + año). La versión —el trim— quedó fuera a propósito.
-- **Respaldo automático** de `cat_comercial.db` con retención definida.
+- **Respaldo automático** de `cat_comercial.db` con retención definida — al definirlo, considerar también `cat_plantillas`/`cat_plantilla_coberturas` (ver nota del punto 2): mismo perfil de riesgo, distinto mecanismo de mitigación (script de reproducción en vez de respaldo de archivo).
 
 ## 👥 Aprobación
 

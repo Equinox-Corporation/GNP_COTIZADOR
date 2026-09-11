@@ -285,11 +285,13 @@ final class PlantillaServicio
      * `CotizacionServicio::cotizar()` arme el `<COBERTURAS>` — nunca se
      * confía en que lo validado al guardar la plantilla siga siendo válido.
      *
-     * @return array{ok:bool,mensaje:string,cve_paquete:string,tipo_persona:string,tipo_vehiculo:string,coberturas:list<array{cve:string,nombre:string,suma:string,deducible:string}>}
+     * @param int $modeloVehiculo año-modelo del vehículo que se está cotizando
+     * @param int $anioVigencia   año en que arranca la vigencia de la cotización
+     * @return array{ok:bool,mensaje:string,nombre:string,cve_paquete:string,tipo_persona:string,tipo_vehiculo:string,coberturas:list<array{cve:string,nombre:string,suma:string,deducible:string}>,omitidas:list<array{cve:string,nombre:string,motivo:string}>}
      */
-    public static function paraCotizar(int $id): array
+    public static function paraCotizar(int $id, int $modeloVehiculo, int $anioVigencia): array
     {
-        $vacio = ['cve_paquete' => '', 'tipo_persona' => '', 'tipo_vehiculo' => '', 'coberturas' => []];
+        $vacio = ['nombre' => '', 'cve_paquete' => '', 'tipo_persona' => '', 'tipo_vehiculo' => '', 'coberturas' => [], 'omitidas' => []];
 
         $p = Db::uno('SELECT * FROM cat_plantillas WHERE id = ? AND activo = 1', [$id]);
         if ($p === null) {
@@ -318,14 +320,94 @@ final class PlantillaServicio
                 'Corrígela en Paquetes propios antes de volver a intentar.'] + $vacio;
         }
 
+        $formateadas = self::paraGnpClient($grupo, $base['paquete'], $v['resueltas'], $modeloVehiculo, $anioVigencia);
+
         return [
             'ok'            => true,
             'mensaje'       => '',
+            'nombre'        => $p['nombre'],
             'cve_paquete'   => $p['cve_paquete'],
             'tipo_persona'  => $base['tipo_persona'],
             'tipo_vehiculo' => $base['tipo_vehiculo'],
-            'coberturas'    => $v['resueltas'],
+            'coberturas'    => $formateadas['incluidas'],
+            'omitidas'      => $formateadas['omitidas'],
         ];
+    }
+
+    /**
+     * Convierte las coberturas ya validadas de una plantilla al formato que
+     * de verdad conviene mandarle a GNP — sólo se usa al cotizar
+     * (`paraCotizar()`), nunca al guardar la plantilla: lo que se captura en
+     * pantalla y lo que se transmite en el XML son cosas distintas.
+     *
+     * Tres reglas, ninguna como caso especial de una clave — todas contra
+     * columnas de `cat_coberturas`, encontradas al cotizar de verdad con las
+     * plantillas reales por primera vez (ver docs/02.12-bug-amparada.md):
+     *
+     *   1. GNP espera números en `SUMA_ASEGURADA`/`DEDUCIBLE`. Un texto de
+     *      estatus como "Amparada" (el único valor "permitido" que tienen
+     *      las coberturas de valor fijo en `cat_cobertura_valores`, porque
+     *      así es como GNP la describe en sus respuestas) no es válido como
+     *      entrada — GNP responde con un error de parseo interno confuso
+     *      ("For input string: Amparada"), no un rechazo de negocio claro.
+     *      Se limpia aquí, nunca se transmite.
+     *   2. Una cobertura Básica, una vez limpia, que se quedó sin ningún
+     *      valor que aportar ya viene incluida por default en el paquete —
+     *      mandarla es redundante (GNP ya la trae) y es exactamente lo que
+     *      pasaba con Club GNP en las 4 plantillas reales. Se omite del
+     *      todo. Una cobertura Opcional en la misma situación SÍ se manda
+     *      igual (sólo `CVE_COBERTURA`/`NOMBRE`, sin valores) porque a
+     *      diferencia de la Básica, si no se pide, GNP no la incluye —
+     *      confirmado con Robo Parcial Plus (deducible sí configurable) y
+     *      Eliminación de Deducible en Pérdidas Parciales (sin nada
+     *      configurable, sólo activarla).
+     *   3. Si `cat_coberturas.antiguedad_max_anios` está poblada para esa
+     *      cobertura y el vehículo no cumple (`MODELO < año de vigencia −
+     *      antiguedad_max_anios`), se omite de `<COBERTURAS>` — GNP la
+     *      rechaza de todas formas, y bloquear la cotización completa por
+     *      una sola cobertura inválida es peor que avisar y seguir sin
+     *      ella (decisión de negocio de Beto, 2026-09-10). Se regresa aparte
+     *      en `omitidas`, con el motivo, para que quien llame a esto lo
+     *      pueda mostrar — nunca en silencio.
+     *
+     * @param list<array{cve:string,nombre:string,suma:string,deducible:string}> $resueltas
+     * @return array{incluidas:list<array{cve:string,nombre:string,suma:string,deducible:string}>,omitidas:list<array{cve:string,nombre:string,motivo:string}>}
+     */
+    private static function paraGnpClient(string $grupo, string $paquete, array $resueltas, int $modeloVehiculo, int $anioVigencia): array
+    {
+        $porClave = [];
+        foreach (CatalogoServicio::coberturasDe($grupo, $paquete) as $d) {
+            $porClave[$d['cve_cobertura']] = $d;
+        }
+
+        $incluidas = [];
+        $omitidas  = [];
+        foreach ($resueltas as $c) {
+            $info = $porClave[$c['cve']] ?? null;
+            $nombreCob = $info['nombre'] ?? $c['nombre'];
+
+            $maxAnios = $info['antiguedad_max_anios'] ?? null;
+            if ($maxAnios !== null && $modeloVehiculo < ($anioVigencia - (int) $maxAnios)) {
+                $omitidas[] = [
+                    'cve'    => $c['cve'],
+                    'nombre' => $nombreCob,
+                    'motivo' => "\"{$nombreCob}\" no aplica — el vehículo no cumple la antigüedad requerida "
+                              . "(máximo {$maxAnios} años; modelo {$modeloVehiculo} para una vigencia que arranca en {$anioVigencia}).",
+                ];
+                continue;
+            }
+
+            $suma = ($c['suma'] !== '' && is_numeric($c['suma'])) ? $c['suma'] : '';
+            $ded  = ($c['deducible'] !== '' && is_numeric($c['deducible'])) ? $c['deducible'] : '';
+
+            $tipo = $info['tipo'] ?? '';
+            if ($tipo === 'BASICA' && $suma === '' && $ded === '') {
+                continue; // ya viene incluida por default — mandarla es redundante
+            }
+
+            $incluidas[] = ['cve' => $c['cve'], 'nombre' => $c['nombre'], 'suma' => $suma, 'deducible' => $ded];
+        }
+        return ['incluidas' => $incluidas, 'omitidas' => $omitidas];
     }
 
     /** @return string mensaje de error, o '' si quedó bien */

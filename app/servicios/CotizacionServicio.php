@@ -38,8 +38,15 @@ final class CotizacionServicio
      */
     public static function cotizar(array $f, array $cvePaquetes, array $opcionales = [], ?int $plantillaId = null): array
     {
+        // Se calcula antes de resolver la plantilla: paraCotizar() necesita el
+        // año de vigencia para aplicar reglas de antigüedad del vehículo
+        // (ej. "Siempre en Agencia" — docs/02.12-bug-amparada.md).
+        $inicio = new DateTimeImmutable('today');
+        $fin    = $inicio->modify('+1 year');
+
+        $avisosOmitidas = [];
         if ($plantillaId !== null) {
-            $aplicada = PlantillaServicio::paraCotizar($plantillaId);
+            $aplicada = PlantillaServicio::paraCotizar($plantillaId, (int) $f['modelo'], (int) $inicio->format('Y'));
             if (!$aplicada['ok']) {
                 return ['ok' => false, 'cotizacion_id' => 0, 'mensaje' => $aplicada['mensaje']];
             }
@@ -55,6 +62,11 @@ final class CotizacionServicio
             }
             $cvePaquetes = [$aplicada['cve_paquete']];
             $opcionales  = $aplicada['coberturas'];
+            // Nunca en silencio: una cobertura omitida (por antigüedad u otra
+            // razón futura) se avisa igual que cualquier otro aviso de esta cotización.
+            foreach ($aplicada['omitidas'] as $o) {
+                $avisosOmitidas[] = $o['motivo'];
+            }
         }
 
         $veh = CatalogoServicio::vehiculo(
@@ -76,9 +88,6 @@ final class CotizacionServicio
         if ($choque !== '') {
             return ['ok' => false, 'cotizacion_id' => 0, 'mensaje' => $choque];
         }
-
-        $inicio = new DateTimeImmutable('today');
-        $fin    = $inicio->modify('+1 year');
 
         $datos = [
             'vigencia_inicio'      => $inicio->format('Ymd'),
@@ -112,26 +121,7 @@ final class CotizacionServicio
             : trim($linea . ' ' . $version);
 
         // Se guarda ANTES de llamar: si GNP falla, queda el rastro de lo que se pidió.
-        Db::ejecutar(
-            'INSERT INTO cot_cotizaciones
-                (estado, usuario_id, tipo_vehiculo, clavemarca, armadora, carroceria, version, modelo,
-                 descripcion_veh, sub_ramo, procedencia, tipo_persona, contratante, contratante_edad,
-                 contratante_cp, contratante_rfc, conductor_edad, conductor_cp, conductor_sexo, correo,
-                 periodicidad, vigencia_inicio, vigencia_fin)
-             VALUES (:es,:us,:tv,:cm,:ar,:cc,:ve,:mo,:dv,:sr,:pr,:tp,:co,:ce,:cp,:rf,:de,:dc,:ds,:em,:pe,:vi,:vf)',
-            [
-                ':es' => 'BORRADOR', ':us' => Auth::id(), ':tv' => $veh['tipo_vehiculo'],
-                ':cm' => $veh['clavemarca'], ':ar' => $veh['armadora'], ':cc' => $veh['carroceria'],
-                ':ve' => $veh['version'], ':mo' => $veh['modelo'], ':dv' => $descripcion,
-                ':sr' => $subRamo, ':pr' => $f['procedencia'], ':tp' => $f['tipo_persona'],
-                ':co' => trim($f['nombres'] . ' ' . $f['apellido_paterno'] . ' ' . $f['apellido_materno']),
-                ':ce' => (int) $f['contratante_edad'], ':cp' => $f['contratante_cp'], ':rf' => $f['contratante_rfc'],
-                ':de' => (int) $f['conductor_edad'], ':dc' => $f['conductor_cp'], ':ds' => $f['conductor_sexo'],
-                ':em' => $f['correo'], ':pe' => $datos['periodicidad'],
-                ':vi' => $datos['vigencia_inicio'], ':vf' => $datos['vigencia_fin'],
-            ]
-        );
-        $cotId = Db::ultimoId();
+        $cotId = self::crearBorrador($veh, $datos, $f, $descripcion);
 
         // GNP quiere el NOMBRE de la cobertura junto con su clave. Y si el
         // vendedor no capturó suma asegurada, se usa la de omisión del catálogo:
@@ -181,34 +171,121 @@ final class CotizacionServicio
                     'mensaje' => 'GNP respondió pero no devolvió ningún paquete. Revisa la combinación elegida.'];
         }
 
-        self::guardarResultados($cotId, $r);
+        // Sólo hay UNA plantilla en este flujo (el de "usar plantilla propia"
+        // de cotizar.php): todo el paquete cotizado es de ella, o de ninguna.
+        $errGuardado = self::guardarResultados($cotId, $r, $plantillaId, $plantillaId !== null ? ($aplicada['omitidas'] ?? []) : []);
+        if ($errGuardado !== '') {
+            Db::ejecutar('UPDATE cot_cotizaciones SET estado = ?, error_desc = ? WHERE id = ?', ['ERROR', $errGuardado, $cotId]);
+            return ['ok' => false, 'cotizacion_id' => $cotId, 'mensaje' => $errGuardado];
+        }
 
         Db::ejecutar(
             "UPDATE cot_cotizaciones SET estado = 'COTIZADA', folio = ?, vence_en = date('now','localtime','+" . self::DIAS_VIGENCIA . " day') WHERE id = ?",
             [$r['folio'], $cotId]
         );
 
-        $aviso = '';
+        $avisos = [];
         if (count($r['paquetes']) < count($paquetes)) {
-            $aviso = 'Ojo: se pidieron ' . count($paquetes) . ' paquetes y GNP devolvió ' . count($r['paquetes']) . '.';
+            $avisos[] = 'Ojo: se pidieron ' . count($paquetes) . ' paquetes y GNP devolvió ' . count($r['paquetes']) . '.';
+        }
+        // Nunca en silencio (ver docs/02.12-bug-amparada.md): una cobertura de
+        // la plantilla omitida por antigüedad u otra razón se avisa aquí.
+        foreach ($avisosOmitidas as $motivo) {
+            $avisos[] = $motivo;
         }
 
-        return ['ok' => true, 'cotizacion_id' => $cotId, 'mensaje' => $aviso];
+        return ['ok' => true, 'cotizacion_id' => $cotId, 'mensaje' => implode(' ', $avisos)];
     }
 
-    private static function guardarResultados(int $cotId, array $r): void
+    /**
+     * Inserta el borrador de la cotización — ANTES de llamar a GNP, para que
+     * quede el rastro de lo que se pidió aunque la llamada falle. Compartido
+     * por el flujo manual/plantilla única de aquí y por
+     * `JuegaYCompararServicio` (ADR-007, Paso 2): arman los mismos campos,
+     * sólo cambia cómo se resuelven los paquetes a cotizar.
+     */
+    public static function crearBorrador(array $veh, array $datos, array $f, string $descripcion): int
     {
+        Db::ejecutar(
+            'INSERT INTO cot_cotizaciones
+                (estado, usuario_id, tipo_vehiculo, clavemarca, armadora, carroceria, version, modelo,
+                 descripcion_veh, sub_ramo, procedencia, tipo_persona, contratante, contratante_edad,
+                 contratante_cp, contratante_rfc, conductor_edad, conductor_cp, conductor_sexo, correo,
+                 periodicidad, vigencia_inicio, vigencia_fin)
+             VALUES (:es,:us,:tv,:cm,:ar,:cc,:ve,:mo,:dv,:sr,:pr,:tp,:co,:ce,:cp,:rf,:de,:dc,:ds,:em,:pe,:vi,:vf)',
+            [
+                ':es' => 'BORRADOR', ':us' => Auth::id(), ':tv' => $veh['tipo_vehiculo'],
+                ':cm' => $veh['clavemarca'], ':ar' => $veh['armadora'], ':cc' => $veh['carroceria'],
+                ':ve' => $veh['version'], ':mo' => $veh['modelo'], ':dv' => $descripcion,
+                ':sr' => $datos['sub_ramo'], ':pr' => $f['procedencia'], ':tp' => $f['tipo_persona'],
+                ':co' => trim($f['nombres'] . ' ' . $f['apellido_paterno'] . ' ' . $f['apellido_materno']),
+                ':ce' => (int) $f['contratante_edad'], ':cp' => $f['contratante_cp'], ':rf' => $f['contratante_rfc'],
+                ':de' => (int) $f['conductor_edad'], ':dc' => $f['conductor_cp'], ':ds' => $f['conductor_sexo'],
+                ':em' => $f['correo'], ':pe' => $datos['periodicidad'],
+                ':vi' => $datos['vigencia_inicio'], ':vf' => $datos['vigencia_fin'],
+            ]
+        );
+        return (int) Db::ultimoId();
+    }
+
+    /**
+     * @param int|null $plantillaId de dónde salió TODO lo cotizado en esta
+     *        llamada, cuando es un solo origen (flujo de "usar plantilla
+     *        propia" de cotizar.php). NULL para "GNP Cotizador" manual —
+     *        no cambia su comportamiento — y también NULL cuando se usa
+     *        $porPaquete (varias plantillas, ver abajo).
+     * @param list<array{cve:string,nombre:string,motivo:string}> $omitidas
+     *        coberturas omitidas de esa única plantilla, cuando $plantillaId
+     *        no es NULL. Ver `PlantillaServicio::paraGnpClient()`.
+     * @param array<string,array{plantilla_id:int,omitidas:list<array{cve:string,nombre:string,motivo:string}>}> $porPaquete
+     *        para el módulo "Juega y Compara" (varias plantillas a la vez):
+     *        metadatos por paquete, indexados por **DESC_PAQUETE** — nunca
+     *        por CVE_PAQUETE, porque dos plantillas reales (Equinox Amplia
+     *        Plus y Equinox Amplia) comparten la misma clave de paquete de
+     *        GNP; el nombre de la plantilla sí es único y GNP lo devuelve
+     *        igual que se le mandó (mismo criterio ya usado en
+     *        `prueba_multipaquete_plantillas.php`, docs/02.11).
+     * @return string mensaje de error de negocio, o '' si se guardó bien.
+     *        `cot_resultados` ya no tiene un `UNIQUE(cotizacion_id,
+     *        cve_paquete)` (10-sep-2026, ver Esquema.php::migrar()): dos
+     *        plantillas reales comparten `cve_paquete`, así que esa regla ya
+     *        no describe una duplicidad real. La que sí lo es —el mismo
+     *        (`cve_paquete`, `plantilla_id`) repetido, sea por un paquete
+     *        estándar marcado dos veces en 'GNP Cotizador' o por la misma
+     *        plantilla elegida dos veces aquí— ya no la detiene ningún
+     *        índice de la base: se valida aquí, explícitamente, antes del
+     *        INSERT, para que sea un error de negocio legible y no un
+     *        renglón duplicado silencioso ni una excepción de PDO sin capturar.
+     */
+    public static function guardarResultados(int $cotId, array $r, ?int $plantillaId = null, array $omitidas = [], array $porPaquete = []): string
+    {
+        $vistos = [];
+        foreach ($r['paquetes'] as $p) {
+            $meta  = $porPaquete[$p['desc']] ?? null;
+            $plId  = $meta['plantilla_id'] ?? $plantillaId;
+            $llave = $p['cve'] . '|' . ($plId ?? '');
+            if (isset($vistos[$llave])) {
+                return 'GNP devolvió el paquete "' . $p['desc'] . '" (' . $p['cve'] . ') más de una vez en la misma '
+                     . 'cotización — no se guarda, para no dejar un resultado duplicado. Revisa que no se haya '
+                     . 'marcado el mismo paquete o elegido la misma plantilla dos veces.';
+            }
+            $vistos[$llave] = true;
+        }
+
         Db::ejecutar('DELETE FROM cot_resultados WHERE cotizacion_id = ?', [$cotId]);
 
         foreach ($r['paquetes'] as $p) {
             $c = $p['conceptos'];
+            $meta   = $porPaquete[$p['desc']] ?? null;
+            $plId   = $meta['plantilla_id'] ?? $plantillaId;
+            $omidas = $meta['omitidas'] ?? $omitidas;
 
             // Siempre por NOMBRE, nunca por posición.
             Db::ejecutar(
                 'INSERT INTO cot_resultados
                     (cotizacion_id, cve_paquete, paquete, prima_tecnica, prima_neta, derechos, iva,
-                     descuento, total_pagar, num_pagos, conceptos_json)
-                 VALUES (:co,:cv,:pa,:pt,:pn,:de,:iv,:ds,:tp,:np,:js)',
+                     descuento, total_pagar, num_pagos, conceptos_json, plantilla_id)
+                 VALUES (:co,:cv,:pa,:pt,:pn,:de,:iv,:ds,:tp,:np,:js,:pl)',
                 [
                     ':co' => $cotId, ':cv' => $p['cve'], ':pa' => $p['desc'],
                     ':pt' => $c['PRIMA_TECNICA']   ?? null,
@@ -219,6 +296,7 @@ final class CotizacionServicio
                     ':tp' => $c['TOTAL_PAGAR']     ?? null,
                     ':np' => isset($c['NUM_PAGOS']) ? (int) $c['NUM_PAGOS'] : null,
                     ':js' => json_encode($c, JSON_UNESCAPED_UNICODE),
+                    ':pl' => $plId,
                 ]
             );
             $resId = Db::ultimoId();
@@ -230,7 +308,16 @@ final class CotizacionServicio
                     [$resId, $cb['cve'], $cb['nombre'], $cb['suma'], $cb['ded'], $i]
                 );
             }
+
+            foreach ($omidas as $i => $o) {
+                Db::ejecutar(
+                    'INSERT INTO cot_resultado_omitidas (resultado_id, cve_cobertura, nombre, motivo, orden) VALUES (?,?,?,?,?)',
+                    [$resId, $o['cve'], $o['nombre'], $o['motivo'], $i]
+                );
+            }
         }
+
+        return '';
     }
 
     /**
@@ -299,6 +386,13 @@ final class CotizacionServicio
         foreach ($res as &$r) {
             $r['coberturas'] = Db::todos(
                 'SELECT * FROM cot_resultado_coberturas WHERE resultado_id = ? ORDER BY orden',
+                [$r['id']]
+            );
+            // Nunca en silencio (docs/02.12-bug-amparada.md): coberturas de la
+            // plantilla que no se transmitieron para este paquete puntual —
+            // la pantalla las muestra igual que "no incluida".
+            $r['omitidas'] = Db::todos(
+                'SELECT * FROM cot_resultado_omitidas WHERE resultado_id = ? ORDER BY orden',
                 [$r['id']]
             );
         }
