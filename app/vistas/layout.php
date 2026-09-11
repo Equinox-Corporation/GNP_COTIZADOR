@@ -12,7 +12,7 @@
   // contenido automático a propósito — para el tamaño de este proyecto,
   // subir el número a mano alcanza; si se vuelve tedioso, ahí sí vale la
   // pena automatizarlo (ej. con la fecha de modificación del archivo).
-  $versionEstilo = 3;
+  $versionEstilo = 4;
 ?>
 <link rel="stylesheet" href="<?= h(BASE_URL) ?>/assets/estilo.css?v=<?= $versionEstilo ?>">
 </head>

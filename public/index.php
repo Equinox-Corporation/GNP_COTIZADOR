@@ -21,7 +21,7 @@ define('BASE_URL', rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] 
 foreach (['core/Esquema', 'core/Db', 'core/Auth', 'core/GnpClient', 'core/PdfBasico',
           'servicios/CatalogoServicio', 'servicios/CotizacionServicio', 'servicios/ImpresionServicio',
           'servicios/EvidenciaServicio', 'servicios/UsuarioServicio', 'servicios/ComparativoServicio',
-          'servicios/PlantillaServicio', 'servicios/JuegaYCompararServicio'] as $c) {
+          'servicios/PlantillaServicio', 'servicios/JuegaYCompararServicio', 'servicios/ArmadorLibreServicio'] as $c) {
     require RUTA_APP . '/' . $c . '.php';
 }
 
@@ -68,6 +68,43 @@ function redirigir(string $r, array $p = []): never
 {
     header('Location: ' . url($r, $p));
     exit;
+}
+
+/**
+ * Contexto compartido de la vista `armador` (ADR-007, docs/02.14): lo usan
+ * la ruta GET y las dos rutas POST cuando hay que volver a mostrar el
+ * formulario (con error, o después de guardar). `$sumaGuardada`/
+ * `$dedGuardada` no se recalculan aquí a propósito — quien llama decide si
+ * vienen del punto de partida real (`PlantillaServicio::puntoDePartida()`)
+ * o de lo que el vendedor acababa de marcar cuando falló el envío.
+ */
+function armadorContexto(string $modo, ?array $plantilla, string $cvePaquete, array $sumaGuardada, array $dedGuardada): array
+{
+    return [
+        'modo'                => $modo,
+        'plantilla'           => $plantilla,
+        'paquetesBase'        => CatalogoServicio::paquetes('F', 'Residentes', 'AUT'),
+        'cvePaqueteInicial'   => $cvePaquete,
+        'coberturasIniciales' => $cvePaquete !== '' ? PlantillaServicio::coberturasDisponibles($cvePaquete) : [],
+        'sumaGuardada'        => $sumaGuardada,
+        'dedGuardada'         => $dedGuardada,
+        'procedencias'        => CatalogoServicio::procedencias(),
+    ];
+}
+
+/** Reconstruye la combinación de coberturas tal como llegó en el POST — mismo formato que ya usa 'plantillas/guardar'. */
+function coberturasDesdePost(array $post): array
+{
+    $coberturas = [];
+    foreach ((array) ($post['coberturas'] ?? []) as $cve) {
+        $cve = (string) $cve;
+        $coberturas[] = [
+            'cve'       => $cve,
+            'suma'      => (string) ($post['suma_' . $cve] ?? ''),
+            'deducible' => (string) ($post['ded_' . $cve] ?? ''),
+        ];
+    }
+    return $coberturas;
 }
 
 Auth::iniciarSesion();
@@ -456,21 +493,12 @@ switch ($ruta) {
             redirigir('plantillas');
         }
         $idPlant = (int) ($_POST['id'] ?? 0);
-        $coberturasPost = [];
-        foreach ((array) ($_POST['coberturas'] ?? []) as $cve) {
-            $cve = (string) $cve;
-            $coberturasPost[] = [
-                'cve'       => $cve,
-                'suma'      => (string) ($_POST['suma_' . $cve] ?? ''),
-                'deducible' => (string) ($_POST['ded_' . $cve] ?? ''),
-            ];
-        }
         $r = PlantillaServicio::guardar(
             $idPlant > 0 ? $idPlant : null,
             (string) ($_POST['nombre'] ?? ''),
             (string) ($_POST['cve_paquete'] ?? ''),
             !empty($_POST['activo']),
-            $coberturasPost
+            coberturasDesdePost($_POST)
         );
         redirigir('plantillas', $r['ok']
             ? ['ok' => $r['mensaje']]
@@ -610,6 +638,160 @@ switch ($ruta) {
             'id'    => $resJc['cotizacion_id'],
             'aviso' => implode(' ', $avisosJc),
         ]));
+
+    // ─── Armador libre de coberturas — Fase 2 (ADR-007, docs/02.14) ─────────
+    //
+    // Dos entradas a la MISMA pantalla: "Personalizar" trae un plantilla_id
+    // de partida (sus coberturas guardadas, editables, sin tocar la
+    // plantilla oficial); "Armar desde cero" no trae ninguno (empieza vacío
+    // sobre el paquete base que se elija). No toca cotizar.php ni la lógica
+    // ya construida en PlantillaServicio/ArmadorLibreServicio — sólo la capa
+    // de pantalla, reutilizando puntoDePartida()/paraAdHoc()/cotizar() tal cual.
+    case 'armador':
+        $plantillaIdGet = (int) ($_GET['plantilla_id'] ?? 0);
+        $modo = $plantillaIdGet > 0 ? 'plantilla' : 'libre';
+        $plantillaGet = $modo === 'plantilla' ? PlantillaServicio::obtener($plantillaIdGet) : null;
+        if ($modo === 'plantilla' && $plantillaGet === null) {
+            redirigir('juega-y-compara', ['error' => 'Esa plantilla ya no existe.']);
+        }
+        $cvePaqueteGet = $modo === 'plantilla' ? $plantillaGet['cve_paquete'] : (string) ($_GET['cve_paquete'] ?? '');
+
+        $partidaGet = PlantillaServicio::puntoDePartida($cvePaqueteGet, $modo === 'plantilla' ? $plantillaIdGet : null);
+        $sumaGet = []; $dedGet = [];
+        foreach ($partidaGet['coberturas'] as $c) {
+            $sumaGet[$c['cve']] = $c['suma'];
+            $dedGet[$c['cve']]  = $c['deducible'];
+        }
+
+        vista('armador', armadorContexto($modo, $plantillaGet, $cvePaqueteGet, $sumaGet, $dedGet) + [
+            'error' => $partidaGet['ok'] ? (string) ($_GET['error'] ?? '') : $partidaGet['mensaje'],
+            'ok'    => (string) ($_GET['ok'] ?? ''),
+            'previo' => [],
+        ]);
+        exit;
+
+    case 'armador/cotizar':
+        if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
+            redirigir('armador');
+        }
+
+        $plantillaIdPost = (int) ($_POST['plantilla_id'] ?? 0);
+        $modoPost = $plantillaIdPost > 0 ? 'plantilla' : 'libre';
+        $plantillaPost = $modoPost === 'plantilla' ? PlantillaServicio::obtener($plantillaIdPost) : null;
+        $cvePaquetePost = (string) ($_POST['cve_paquete'] ?? '');
+        $coberturasPost2 = coberturasDesdePost($_POST);
+
+        // Mismo shape de $f que 'cotizar'/'juega-y-compara' — ArmadorLibreServicio
+        // lo espera igual. Se repite aquí a propósito: 'cotizar' no se toca.
+        $fArm = [
+            'tipo_vehiculo'    => (string) ($_POST['tipo_vehiculo'] ?? 'AUT'),
+            'armadora'         => (string) ($_POST['armadora'] ?? ''),
+            'carroceria'       => (string) ($_POST['carroceria'] ?? ''),
+            'modelo'           => (int) ($_POST['modelo'] ?? 0),
+            'version'          => (string) ($_POST['version'] ?? ''),
+            'procedencia'      => (string) ($_POST['procedencia'] ?? 'Residentes'),
+            'tipo_persona'     => (string) ($_POST['tipo_persona'] ?? 'F'),
+            'nombres'          => trim((string) ($_POST['nombres'] ?? '')),
+            'apellido_paterno' => trim((string) ($_POST['apellido_paterno'] ?? '')),
+            'apellido_materno' => trim((string) ($_POST['apellido_materno'] ?? '')),
+            'contratante_rfc'  => strtoupper(trim((string) ($_POST['contratante_rfc'] ?? ''))),
+            'conductor_edad'   => (int) ($_POST['conductor_edad'] ?? 0),
+            'conductor_cp'     => trim((string) ($_POST['conductor_cp'] ?? '')),
+            'conductor_sexo'   => (string) ($_POST['conductor_sexo'] ?? 'M'),
+            'conductor_nacimiento' => preg_replace('/\D/', '', (string) ($_POST['conductor_nacimiento'] ?? '')) ?: '',
+            'correo'           => trim((string) ($_POST['correo'] ?? '')),
+            'periodicidad'     => (string) ($_POST['periodicidad'] ?? 'A'),
+        ];
+        $fArm['contratante_edad'] = $fArm['conductor_edad'];
+        $fArm['contratante_cp']   = $fArm['conductor_cp'];
+
+        $faltanArm = [];
+        if ($fArm['armadora'] === '' || $fArm['carroceria'] === '' || $fArm['version'] === '' || $fArm['modelo'] === 0) {
+            $faltanArm[] = 'el vehículo completo (marca, línea, año y versión)';
+        }
+        if ($cvePaquetePost === '') {
+            $faltanArm[] = 'el paquete base';
+        }
+        if ($coberturasPost2 === []) {
+            $faltanArm[] = 'al menos una cobertura';
+        }
+        if ($fArm['conductor_edad'] <= 0 || $fArm['conductor_cp'] === '') {
+            $faltanArm[] = 'la edad y el código postal del solicitante — son los que determinan el precio';
+        }
+        if ($faltanArm !== []) {
+            $sumaArm = []; $dedArm = [];
+            foreach ($coberturasPost2 as $c) { $sumaArm[$c['cve']] = $c['suma']; $dedArm[$c['cve']] = $c['deducible']; }
+            vista('armador', armadorContexto($modoPost, $plantillaPost, $cvePaquetePost, $sumaArm, $dedArm) + [
+                'error' => 'Falta ' . implode('; falta ', $faltanArm) . '.', 'ok' => '', 'previo' => $_POST,
+            ]);
+            exit;
+        }
+
+        // Misma lógica de edad-vs-fecha que 'cotizar' (ver su comentario grande).
+        $nacArm = $fArm['conductor_nacimiento'];
+        $coherenteArm = strlen($nacArm) === 8
+            && ($dArm = DateTimeImmutable::createFromFormat('Ymd', $nacArm)) !== false
+            && (int) $dArm->diff(new DateTimeImmutable('today'))->y === $fArm['conductor_edad'];
+        if (!$coherenteArm) {
+            $fArm['conductor_nacimiento'] = (string) (date('Y') - $fArm['conductor_edad']) . '0101';
+        }
+
+        $avisosArm = [];
+        if ($fArm['conductor_edad'] < 18) {
+            $avisosArm[] = '¡Advertencia! El Solicitante es menor de Edad (' . $fArm['conductor_edad'] . ' años). '
+                         . 'La edad mínima para contratar es 18: si no es un caso de excepción, hay que revisar el dato.';
+        }
+
+        $resArm = ArmadorLibreServicio::cotizar($fArm, $cvePaquetePost, $coberturasPost2);
+
+        if (!$resArm['ok']) {
+            $sumaArm = []; $dedArm = [];
+            foreach ($coberturasPost2 as $c) { $sumaArm[$c['cve']] = $c['suma']; $dedArm[$c['cve']] = $c['deducible']; }
+            vista('armador', armadorContexto($modoPost, $plantillaPost, $cvePaquetePost, $sumaArm, $dedArm) + [
+                'error' => $resArm['mensaje'], 'ok' => '', 'previo' => $_POST,
+            ]);
+            exit;
+        }
+        if (($resArm['mensaje'] ?? '') !== '') {
+            $avisosArm[] = $resArm['mensaje'];
+        }
+
+        redirigir('resultado', array_filter([
+            'id'    => $resArm['cotizacion_id'],
+            'aviso' => implode(' ', $avisosArm),
+        ]));
+
+    case 'armador/guardar':
+        if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
+            redirigir('armador');
+        }
+
+        $plantillaIdPost2 = (int) ($_POST['plantilla_id'] ?? 0);
+        $modoPost2 = $plantillaIdPost2 > 0 ? 'plantilla' : 'libre';
+        $plantillaPost2 = $modoPost2 === 'plantilla' ? PlantillaServicio::obtener($plantillaIdPost2) : null;
+        $cvePaquetePost2 = (string) ($_POST['cve_paquete'] ?? '');
+        $coberturasPost3 = coberturasDesdePost($_POST);
+
+        $rGuardarArm = PlantillaServicio::guardar(
+            null,
+            (string) ($_POST['nombre_nueva_plantilla'] ?? ''),
+            $cvePaquetePost2,
+            true,
+            $coberturasPost3
+        );
+
+        if (!$rGuardarArm['ok']) {
+            $sumaArm2 = []; $dedArm2 = [];
+            foreach ($coberturasPost3 as $c) { $sumaArm2[$c['cve']] = $c['suma']; $dedArm2[$c['cve']] = $c['deducible']; }
+            vista('armador', armadorContexto($modoPost2, $plantillaPost2, $cvePaquetePost2, $sumaArm2, $dedArm2) + [
+                'error' => $rGuardarArm['mensaje'], 'ok' => '', 'previo' => $_POST,
+            ]);
+            exit;
+        }
+
+        // Reabre el armador sobre la plantilla recién creada: misma combinación,
+        // ahora ya guardada — así se puede seguir cotizando con ella de una vez.
+        redirigir('armador', ['plantilla_id' => $rGuardarArm['id'], 'ok' => 'Plantilla guardada como "' . (string) ($_POST['nombre_nueva_plantilla'] ?? '') . '".']);
 
     default:
         redirigir('cotizar');

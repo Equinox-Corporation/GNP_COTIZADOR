@@ -131,6 +131,10 @@ input:focus, select:focus { outline: 2px solid var(--marca); outline-offset: 1px
   background: var(--alerta-sua); color: var(--alerta);
   padding: .05rem .4rem; border-radius: 999px; font-size: .68rem;
 }
+/* Chip de plantilla + su enlace de "personalizar" (armador libre, docs/02.14) */
+.chip-personalizable { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; }
+.enlace-discreto { font-size: .74rem; color: var(--tinta-sua); text-decoration: underline; margin-left: .3rem; }
+.enlace-discreto:hover { color: var(--marca); }
 details { margin-top: 1rem; }
 summary { cursor: pointer; font-size: .9rem; color: var(--marca); }
 

@@ -74,7 +74,7 @@ El manual no publica catálogo de códigos de error. La clasificación se constr
 | `gateway` (504) | Respuesta demasiado grande — ver punto 7 | Pedir menos, no reintentar |
 | `parser` | La respuesta no se pudo interpretar | Registrar y revisar el XML crudo |
 | `impresor` / `impresion` | Problema al generar el PDF | Reintentar la impresión, la cotización sigue viva |
-| `cotizador-eot` | Validación de negocio del motor de cotización: coberturas excluyentes juntas (clave 37), suma asegurada fuera de lo permitido para esa cobertura (clave 14), o cobertura que no aplica a ese producto (clave 12) | No reintentar. El mensaje ya trae la clave y el motivo — mostrarlo tal cual |
+| `cotizador-eot` | Validación de negocio del motor de cotización — clave 14 (valor fuera de lo permitido) y clave 12 (cobertura que no aplica a ese producto) sí son específicas; **clave 37 es genérica, no una sola causa** — ver nota fechada abajo | No reintentar. El mensaje ya trae el motivo en texto — mostrarlo tal cual, no decidir el tipo de error por la clave |
 
 Es mucho más confiable que adivinar por palabras clave en el texto del mensaje.
 
@@ -84,6 +84,17 @@ _(CC, 2026-09-10)_ — Se agrega `cotizador-eot` a la tabla. Las tres claves est
 - **Claves 14 y 12** — `sys_llamadas.id = 60` y `61`. Ver [`docs/02.6-coberturas-modificadas.md`](../02.6-coberturas-modificadas.md).
 
 Cae correctamente en `E_DATOS` por la regla de respaldo de `GnpClient::clasificar()` (clave ≥ 2), así que nunca rompió nada — quedaba pendiente documentarlo, no corregirlo.
+
+**Corrección — clave 37 NO es "coberturas excluyentes", es genérica** _(Beto + CC, 2026-09-11)_: la nota de arriba (10-sep-2026) afirmaba que clave 37 significaba específicamente exclusión mutua. Al construir el armador libre (`docs/02.13-armador-libre-backend.md`) apareció una segunda exclusión real (Robo Parcial / Robo Parcial Plus, `sys_llamadas.id = 102`, mismo texto de exclusión que la primera) — la coincidencia hizo sospechar que 37 fuera el código genérico de exclusión, con el par específico sólo en el mensaje. Se revisó **todo** `sys_llamadas` con `error_clave = 37` (9 filas) para confirmarlo, y el resultado es más amplio que la hipótesis: 37 no es siquiera "el código de exclusión" — es el código genérico de **cualquier** rechazo de negocio de `cotizador-eot` sobre `<COBERTURAS>`, sin importar el tipo:
+
+| Tipo de rechazo | `sys_llamadas.id` | Texto del mensaje |
+|---|---|---|
+| Exclusión mutua | 62 | `...SON EXCLUYENTES. FAVOR DE SELECCIONAR SÓLO UNA.` (trío Auto Sustituto) |
+| Exclusión mutua | 102 | `...son excluyentes` (Robo Parcial / Robo Parcial Plus) |
+| Valor no numérico mal formado | 69, 74 | `For input string: "N/A"`, `For input string: "Amparada"` |
+| Cobertura no aplica al vehículo | 75, 77, 78, 79, 81, 82 | `SIEMPRE EN AGENCIA Y/O GARANTIA DE AUTOS FINANCIADOS NO APLICA PARA EL VEHICULO COTIZADO` |
+
+**Regla correcta: clave 37 = rechazo genérico de `cotizador-eot` sobre `<COBERTURAS>`. El tipo de rechazo (exclusión, valor inválido, no aplica) se lee del texto de `error_desc`, nunca de la clave.** La tabla de arriba ya se corrigió para no repetir la afirmación original. No cambia el manejo técnico: sigue cayendo en `E_DATOS` por la regla de respaldo (clave ≥ 2) y el mensaje siempre se muestra tal cual — el error práctico era sólo documental (una nota que generalizaba de un solo caso observado), no una falla de `GnpClient::clasificar()`.
 
 ### 7. Un `504` no es un rechazo `[CONFIRMADO]`
 

@@ -335,6 +335,87 @@ final class PlantillaServicio
     }
 
     /**
+     * Armador libre, Fase 1 (backend, ver docs/02.13-armador-libre-backend.md):
+     * punto de partida editable para armar una combinación ad-hoc sobre un
+     * paquete base, sin tocar ninguna plantilla guardada.
+     *
+     * Si se da `$plantillaId`, arranca con sus coberturas ya guardadas — deben
+     * pertenecer al MISMO `$cvePaquete` que se pidió; rebasar una plantilla
+     * hacia un paquete base distinto queda fuera de esta fase (una cobertura
+     * válida en un paquete no necesariamente lo es en otro). Sin
+     * `$plantillaId`, arranca vacío: sólo lo Básico del paquete, sin ninguna
+     * Opcional agregada — igual que una plantilla nueva desde cero.
+     *
+     * @return array{ok:bool,mensaje:string,coberturas:list<array{cve:string,suma:string,deducible:string}>}
+     */
+    public static function puntoDePartida(string $cvePaquete, ?int $plantillaId = null): array
+    {
+        if ($plantillaId === null) {
+            return ['ok' => true, 'mensaje' => '', 'coberturas' => []];
+        }
+
+        $p = self::obtener($plantillaId);
+        if ($p === null) {
+            return ['ok' => false, 'mensaje' => 'Esa plantilla ya no existe.', 'coberturas' => []];
+        }
+        if ($p['cve_paquete'] !== $cvePaquete) {
+            return ['ok' => false, 'mensaje' =>
+                "La plantilla \"{$p['nombre']}\" está armada sobre otro paquete base ({$p['cve_paquete']}), no sobre {$cvePaquete}. " .
+                'Partir de una plantilla de otro paquete no está soportado todavía.', 'coberturas' => []];
+        }
+
+        $coberturas = array_map(static fn (array $c): array => [
+            'cve' => $c['cve_cobertura'], 'suma' => (string) $c['suma_asegurada'], 'deducible' => (string) $c['deducible'],
+        ], $p['coberturas']);
+
+        return ['ok' => true, 'mensaje' => '', 'coberturas' => $coberturas];
+    }
+
+    /**
+     * Armador libre, Fase 1: resuelve y valida una combinación de coberturas
+     * armada al vuelo sobre un paquete base — mismo mecanismo que
+     * `paraCotizar()`, sólo que entra por una lista completa de coberturas en
+     * vez de un `plantilla_id`. No duplica ninguna regla: reutiliza
+     * `validarCoberturas()` y `paraGnpClient()` tal cual.
+     *
+     * No toca `cat_plantillas` — es una cotización puntual. Guardarla como
+     * plantilla nueva, si se decide después, es una acción aparte con
+     * `guardar(null, ...)`, no algo que haga este método.
+     *
+     * @param list<array{cve:string,suma?:string,deducible?:string}> $coberturas combinación COMPLETA deseada, no un diff
+     * @param int $modeloVehiculo año-modelo del vehículo que se está cotizando
+     * @param int $anioVigencia   año en que arranca la vigencia de la cotización
+     * @return array{ok:bool,mensaje:string,cve_paquete:string,tipo_persona:string,tipo_vehiculo:string,coberturas:list<array{cve:string,nombre:string,suma:string,deducible:string}>,omitidas:list<array{cve:string,nombre:string,motivo:string}>}
+     */
+    public static function paraAdHoc(string $cvePaquete, array $coberturas, int $modeloVehiculo, int $anioVigencia): array
+    {
+        $vacio = ['cve_paquete' => $cvePaquete, 'tipo_persona' => '', 'tipo_vehiculo' => '', 'coberturas' => [], 'omitidas' => []];
+
+        $base = Db::uno('SELECT paquete, tipo_persona, tipo_vehiculo FROM cat_paquetes WHERE cve_paquete = ? LIMIT 1', [$cvePaquete]);
+        if ($base === null) {
+            return ['ok' => false, 'mensaje' => "El paquete \"{$cvePaquete}\" no existe en cat_paquetes."] + $vacio;
+        }
+        $grupo = CatalogoServicio::grupo($base['tipo_vehiculo']);
+
+        $v = self::validarCoberturas($grupo, $base['paquete'], $coberturas);
+        if (!$v['ok']) {
+            return ['ok' => false, 'mensaje' => $v['mensaje']] + $vacio;
+        }
+
+        $formateadas = self::paraGnpClient($grupo, $base['paquete'], $v['resueltas'], $modeloVehiculo, $anioVigencia);
+
+        return [
+            'ok'            => true,
+            'mensaje'       => '',
+            'cve_paquete'   => $cvePaquete,
+            'tipo_persona'  => $base['tipo_persona'],
+            'tipo_vehiculo' => $base['tipo_vehiculo'],
+            'coberturas'    => $formateadas['incluidas'],
+            'omitidas'      => $formateadas['omitidas'],
+        ];
+    }
+
+    /**
      * Convierte las coberturas ya validadas de una plantilla al formato que
      * de verdad conviene mandarle a GNP — sólo se usa al cotizar
      * (`paraCotizar()`), nunca al guardar la plantilla: lo que se captura en

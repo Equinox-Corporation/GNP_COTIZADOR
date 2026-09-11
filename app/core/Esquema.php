@@ -473,6 +473,13 @@ SQL);
             ['Auto Sustituto / Ayuda para Pérdidas Totales', '0000001414', 1],  // Auto Sustituto
             ['Auto Sustituto / Ayuda para Pérdidas Totales', '0000001415', 1],  // Auto Sustituto Plus
             ['Auto Sustituto / Ayuda para Pérdidas Totales', '0000001348', 1],  // Ayuda para Pérdidas Totales
+            // Confirmado el 11-sep-2026 al probar el armador libre (docs/02.13-
+            // armador-libre-backend.md, caso 1): pedir Robo Parcial junto con
+            // Robo Parcial Plus devuelve clave 37 desde "cotizador-eot" ("No es
+            // posible contratar la cobertura de Robo Parcial y Robo Parcial Plus
+            // porque son excluyentes"). No estaba en el kit original.
+            ['Robo Parcial / Robo Parcial Plus', '0000001461', 1],  // Robo Parcial
+            ['Robo Parcial / Robo Parcial Plus', '0000001462', 1],  // Robo Parcial Plus
         ] as $g) {
             $ex->execute($g);
         }
@@ -483,6 +490,61 @@ SQL);
         // Aparece en 3 paquetes (Amplia, Premium, Amplia Total) — misma
         // clave, misma regla en los tres.
         $pdo->exec("UPDATE cat_coberturas SET antiguedad_max_anios = 4 WHERE cve_cobertura = '0000001473'");
+
+        // ADR-008 (piso mínimo por paquete) — dos correcciones confirmadas
+        // contra producción el 11-sep-2026 al hacer el control de Amplia Total
+        // sin <COBERTURAS> (sys_llamadas.id = 110):
+        //
+        // 1. "Club GNP" (0000001268) NUNCA aplica a Amplia Total — GNP
+        //    devuelve ahí una cobertura distinta, "Club GNP Plus"
+        //    (0000001687), que no existía en el catálogo. Confirmado que es
+        //    exclusiva de Amplia Total: GNP la rechaza (clave 12) si se pide
+        //    sobre Amplia (sys_llamadas.id = 114) — no se agrega a ningún
+        //    otro paquete sin evidencia de que aplique ahí.
+        if ((int) ($pdo->query(
+            "SELECT COUNT(*) FROM cat_coberturas WHERE grupo='AUTO' AND paquete='AMPLIA TOTAL' AND cve_cobertura='0000001268'"
+        )->fetchColumn()) > 0) {
+            $pdo->exec("DELETE FROM cat_coberturas WHERE grupo='AUTO' AND paquete='AMPLIA TOTAL' AND cve_cobertura='0000001268'");
+        }
+        $pdo->exec(
+            "INSERT INTO cat_coberturas (grupo, paquete, cve_cobertura, nombre, tipo, sa_valor, sa_unidad, ded_valor, ded_unidad)
+             VALUES ('AUTO','AMPLIA TOTAL','0000001687','Club GNP Plus','BASICA','Amparada','N/A','N/A','N/A')
+             ON CONFLICT (grupo, paquete, cve_cobertura) DO NOTHING"
+        );
+        $pdo->exec(
+            "INSERT INTO cat_cobertura_valores (grupo, cve_cobertura, tipo_valor, valor, orden)
+             VALUES ('AUTO','0000001687','SUMA_ASEGURADA','Amparada',1)
+             ON CONFLICT (grupo, cve_cobertura, tipo_valor, valor) DO NOTHING"
+        );
+
+        // 2. "Eliminación de Deducible en Pérdidas Parciales" (0000001689)
+        //    estaba marcada BASICA para Amplia Total — la única de sus cuatro
+        //    apariciones en el catálogo (Amplia, Premium, Amplia Total,
+        //    MOTO/Amplia) con ese tipo; en las otras tres es OPCIONAL.
+        //    Descartada la hipótesis de antigüedad (el mismo control con el
+        //    vehículo más nuevo disponible, modelo 2026, tampoco la trae por
+        //    default — sys_llamadas.id = 115): es un error de captura, no una
+        //    restricción como "Siempre en Agencia". Se corrige a OPCIONAL,
+        //    igual que en los otros tres — no se borra el dato, se corrige.
+        $pdo->exec(
+            "UPDATE cat_coberturas SET tipo = 'OPCIONAL'
+              WHERE grupo='AUTO' AND paquete='AMPLIA TOTAL' AND cve_cobertura='0000001689' AND tipo = 'BASICA'"
+        );
+
+        // 3. "Auto Sustituto" (0000001414) — NO es un hueco de catálogo como
+        //    los dos anteriores: la clave y su tipo (BASICA para Auto Elite)
+        //    ya estaban correctos. Lo único distinto es el nombre: en el
+        //    control de Auto Elite (sys_llamadas.id = 113) GNP la devolvió
+        //    como "AUTO SUSTITUTO PÉRDIDA TOTAL", más específico que el
+        //    "Auto Sustituto" ya guardado. Se corrige el nombre SÓLO para la
+        //    fila de Auto Elite, que es la única con evidencia real — las
+        //    filas de Amplia y Amplia Total conservan "Auto Sustituto" porque
+        //    ahí es Opcional y nunca se pidió para ver qué nombre devuelve
+        //    GNP en ese contexto; no se asume que comparten el mismo matiz.
+        $pdo->exec(
+            "UPDATE cat_coberturas SET nombre = 'Auto Sustituto Pérdida Total'
+              WHERE grupo='AUTO' AND paquete='AUTO ELITE' AND cve_cobertura='0000001414'"
+        );
 
         // Sólo Residentes está verificado contra el servicio (cotización 02.1 del 18-ago).
         // Los demás sub_ramo hay que confirmarlos con GNP antes de ofrecerlos.

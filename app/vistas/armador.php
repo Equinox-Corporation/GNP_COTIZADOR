@@ -1,36 +1,43 @@
 <?php declare(strict_types=1);
-/** @var array $diag @var array $procedencias @var list<array<string,mixed>> $plantillas @var string $error @var array $previo */
+/**
+ * @var string $modo 'plantilla' o 'libre'
+ * @var array|null $plantilla  si $modo === 'plantilla': la plantilla de partida (PlantillaServicio::obtener())
+ * @var list<array<string,mixed>> $paquetesBase  para el selector, sólo en modo 'libre'
+ * @var string $cvePaqueteInicial
+ * @var list<array<string,mixed>> $coberturasIniciales
+ * @var array<string,string> $sumaGuardada @var array<string,string> $dedGuardada
+ * @var array $procedencias @var string $error @var string $ok @var array $previo
+ */
 $v = static fn (string $k, string $d = ''): string => h($previo[$k] ?? $d);
-$plantillasMarcadas = array_map('strval', (array) ($previo['plantillas'] ?? []));
 ?>
 
-<h1>GNP Juega y Compara</h1>
+<h1>Armador libre de coberturas</h1>
 
-<p class="ayuda">
-  Compara varias plantillas propias de Equinox (<code>ADR-007</code>) lado a lado, en una sola cotización.
-  Es un módulo aparte de "GNP Cotizador": aquí siempre se elige entre plantillas, nunca paquetes sueltos.
-</p>
-
-<?php if (!CatalogoServicio::listoParaCotizar()): ?>
-  <div class="aviso alerta">
-    <strong>El catálogo todavía no está cargado.</strong>
-    Hay <?= number_format($diag['vehiculos']) ?> vehículos y <?= number_format($diag['paquetes']) ?> paquetes.
-  </div>
-<?php endif; ?>
-
-<?php if ($plantillas === []): ?>
-  <div class="aviso alerta">
-    <strong>Todavía no hay plantillas activas.</strong>
-    Créalas primero en <a href="<?= h(url('plantillas')) ?>">Paquetes propios</a>.
-  </div>
+<?php if ($modo === 'plantilla' && $plantilla !== null): ?>
+  <p class="ayuda">
+    Personalizando <strong><?= h($plantilla['nombre']) ?></strong> para esta cotización. Los cambios
+    de aquí <strong>no tocan la plantilla oficial</strong> — sólo aplican a lo que cotices ahora, a
+    menos que uses "Guardar como plantilla nueva" abajo.
+  </p>
+<?php else: ?>
+  <p class="ayuda">
+    Arma una combinación de coberturas desde cero sobre el paquete base que elijas. Es una
+    cotización puntual — no crea ninguna plantilla a menos que la guardes explícitamente.
+  </p>
 <?php endif; ?>
 
 <?php if ($error !== ''): ?>
   <div class="aviso error"><?= h($error) ?></div>
 <?php endif; ?>
+<?php if ($ok !== ''): ?>
+  <div class="aviso ok"><?= h($ok) ?></div>
+<?php endif; ?>
 
-<form method="post" action="<?= h(url('juega-y-compara')) ?>" id="frmJyc" autocomplete="off">
+<form method="post" action="<?= h(url('armador/cotizar')) ?>" id="frm_armador" autocomplete="off">
 <input type="hidden" name="_t" value="<?= h(Auth::token()) ?>">
+<?php if ($modo === 'plantilla' && $plantilla !== null): ?>
+  <input type="hidden" name="plantilla_id" value="<?= (int) $plantilla['id'] ?>">
+<?php endif; ?>
 
 <section class="tarjeta">
   <h2>1 · El vehículo</h2>
@@ -142,56 +149,52 @@ $plantillasMarcadas = array_map('strval', (array) ($previo['plantillas'] ?? []))
 </section>
 
 <section class="tarjeta">
-  <h2>3 · Plantillas a comparar</h2>
-  <p class="ayuda">
-    Marca <span class="req">*</span> las plantillas que quieres ver lado a lado. Todas se cotizan en
-    <strong>una sola llamada</strong> a GNP — cada una con sus propias coberturas.
-  </p>
-  <div class="opciones">
-    <?php foreach ($plantillas as $pl): ?>
-      <div class="chip-personalizable">
-        <label class="chip">
-          <input type="checkbox" name="plantillas[]" value="<?= (int) $pl['id'] ?>"
-                 <?= in_array((string) $pl['id'], $plantillasMarcadas, true) ? ' checked' : '' ?>>
-          <span><?= h($pl['nombre']) ?></span>
-          <small><?= h(ucwords(mb_strtolower($pl['paquete'], 'UTF-8'))) ?>
-            · <?= $pl['tipo_persona'] === 'F' ? 'Física' : 'Moral' ?>
-            · <?= h(CatalogoServicio::TIPOS_VEHICULO[$pl['tipo_vehiculo']] ?? $pl['tipo_vehiculo']) ?></small>
-        </label>
-        <a class="enlace-discreto" href="<?= h(url('armador', ['plantilla_id' => (int) $pl['id']])) ?>">Personalizar antes de cotizar</a>
-      </div>
-    <?php endforeach; ?>
-  </div>
-  <p class="ayuda">
-    Si una plantilla incluye una cobertura que el vehículo elegido no cumple (por ejemplo, por antigüedad),
-    se cotiza igual sin esa cobertura y se avisa explícitamente — nunca se oculta.
-    "Personalizar antes de cotizar" abre un armador de coberturas para esa plantilla — los cambios ahí
-    son sólo para esa cotización, nunca tocan la plantilla oficial (<code>docs/02.14</code>).
-  </p>
-  <p class="ayuda">
-    ¿Ninguna de las cuatro es lo que necesitas? <a href="<?= h(url('armador')) ?>">o arma tu propia combinación</a>
-    desde cero, sobre cualquier paquete base de GNP.
-  </p>
+  <h2>3 · Paquete base</h2>
+  <?php if ($modo === 'plantilla' && $plantilla !== null): ?>
+    <p class="ayuda">
+      <strong><?= h($plantilla['nombre']) ?></strong> está armada sobre el paquete
+      <code><?= h($cvePaqueteInicial) ?></code>. No se puede cambiar aquí — para eso usa "Armar desde cero".
+    </p>
+    <input type="hidden" name="cve_paquete" value="<?= h($cvePaqueteInicial) ?>">
+  <?php else: ?>
+    <label class="ancho">Paquete base de GNP <span class="req">*</span>
+      <select name="cve_paquete" id="cve_paquete" required>
+        <option value="">Elige un paquete…</option>
+        <?php foreach ($paquetesBase as $p): ?>
+          <option value="<?= h($p['cve_paquete']) ?>" <?= $p['cve_paquete'] === $cvePaqueteInicial ? 'selected' : '' ?>>
+            <?= h(ucwords(mb_strtolower($p['paquete'], 'UTF-8'))) ?> (<?= h($p['cve_paquete']) ?>)
+          </option>
+        <?php endforeach; ?>
+      </select>
+      <span class="ayuda">Sólo procedencia Residentes está verificada contra GNP.</span>
+    </label>
+  <?php endif; ?>
+</section>
 
-  <label class="linea">Forma de pago
-    <select name="periodicidad">
-      <option value="A">Anual</option>
-      <option value="S">Semestral</option>
-      <option value="T">Trimestral</option>
-      <option value="M">Mensual</option>
-    </select>
-  </label>
+<section class="tarjeta">
+  <h2>4 · Coberturas</h2>
+  <p class="ayuda">
+    Marca las que quieras incluir. Sólo se ofrecen las que este paquete ya trae, como Básica u
+    Opcional — GNP no permite salir de ahí. Las excluyentes entre sí se desmarcan solas, con aviso,
+    antes de intentar cotizar.
+  </p>
+  <?php require RUTA_APP . '/vistas/parciales/editor_coberturas.php'; ?>
 </section>
 
 <div class="acciones">
-  <button type="submit" class="btn primario" id="enviarJyc">Comparar en GNP</button>
-  <span class="ayuda">Cotizar no genera póliza.</span>
+  <button class="btn primario" formaction="<?= h(url('armador/cotizar')) ?>" id="btn_cotizar">Cotizar</button>
+  <label class="linea">
+    <input name="nombre_nueva_plantilla" placeholder="Nombre de la plantilla nueva" value="<?= $v('nombre_nueva_plantilla') ?>">
+  </label>
+  <button class="btn" formaction="<?= h(url('armador/guardar')) ?>" formnovalidate>Guardar como plantilla nueva</button>
 </div>
 
 </form>
 
+<script src="<?= h(BASE_URL) ?>/assets/editor-coberturas.js"></script>
 <script>
 const API = <?= json_encode(url('api')) ?>;
+const API_COB = <?= json_encode(url('plantillas/api-coberturas')) ?>;
 
 const $  = (s) => document.querySelector(s);
 const el = (t, p = {}) => Object.assign(document.createElement(t), p);
@@ -272,7 +275,6 @@ $('#busca').addEventListener('input', (e) => {
   }, 250);
 });
 
-// ── Física vs. Moral ─────────────────────────────────────────────────────────
 function actualizarTipoPersona() {
   const moral = $('#tipo_persona').value === 'M';
   document.querySelectorAll('.solo-fisica').forEach((campo) => {
@@ -291,7 +293,6 @@ $('#version').addEventListener('change', cargarVersiones);
 $('#tipo_persona').addEventListener('change', actualizarTipoPersona);
 actualizarTipoPersona();
 
-// ── Fecha de nacimiento ↔ Edad ───────────────────────────────────────────────
 const anios = (iso) => {
   const f = new Date(iso + 'T00:00:00');
   if (isNaN(f)) return null;
@@ -301,32 +302,21 @@ const anios = (iso) => {
   if (m < 0 || (m === 0 && h.getDate() < f.getDate())) a--;
   return a;
 };
-
 const revisarEdad = () => {
   const pista = $('#pista_edad');
   const e     = parseInt($('#edad').value, 10);
   const calc  = $('#nac').value ? anios($('#nac').value) : null;
   const recados = [];
   let alertar = false;
-
-  if (!isNaN(e) && e < 18) {
-    recados.push('¡Advertencia! El Solicitante es menor de Edad.');
-    alertar = true;
-  }
+  if (!isNaN(e) && e < 18) { recados.push('¡Advertencia! El Solicitante es menor de Edad.'); alertar = true; }
   if (calc !== null && !isNaN(e)) {
-    if (e === calc) {
-      recados.push('Edad calculada con la fecha de nacimiento.');
-    } else {
-      recados.push(`La fecha capturada da ${calc} años; se cotiza con la edad que escribiste.`);
-      alertar = true;
-    }
+    if (e === calc) { recados.push('Edad calculada con la fecha de nacimiento.'); }
+    else { recados.push(`La fecha capturada da ${calc} años; se cotiza con la edad que escribiste.`); alertar = true; }
   }
-
   pista.textContent = recados.join(' ');
   pista.style.color = alertar ? 'var(--alerta)' : '';
   pista.style.fontWeight = (!isNaN(e) && e < 18) ? '600' : '';
 };
-
 $('#nac').addEventListener('change', (e) => {
   $('#nac_h').value = e.target.value ? e.target.value.replaceAll('-', '') : '';
   const a = e.target.value ? anios(e.target.value) : null;
@@ -335,11 +325,18 @@ $('#nac').addEventListener('change', (e) => {
 });
 $('#edad').addEventListener('input', revisarEdad);
 
-$('#frmJyc').addEventListener('submit', () => {
-  const b = $('#enviarJyc');
-  b.disabled = true;
-  b.textContent = 'Consultando a GNP…';
-  setTimeout(() => { b.disabled = false; b.textContent = 'Comparar en GNP'; }, 60000);
+// El selector de paquete sólo existe en modo "libre" (armar desde cero): en
+// modo "plantilla" el paquete viene fijo en un <input type="hidden">.
+const selPaquete = $('#cve_paquete');
+if (selPaquete && selPaquete.tagName === 'SELECT') {
+  selPaquete.addEventListener('change', () => EditorCoberturas.cargar(API_COB));
+}
+EditorCoberturas.activarExclusion();
+
+$('#frm_armador').addEventListener('submit', () => {
+  setTimeout(() => {
+    document.querySelectorAll('#frm_armador button').forEach((b) => { b.disabled = true; });
+  }, 0);
 });
 
 cargarMarcas();

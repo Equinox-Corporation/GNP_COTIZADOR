@@ -12,7 +12,7 @@ Biblioteca del proyecto. Cuando necesites buscar algo, empieza aquí: cada fila 
 |---|---|---|
 | `01_Generales/` | Qué es el proyecto, cómo nació, para qué sirve | [ADR-001-que-es-el-cotizador-gnp.md](./01_Generales/ADR-001-que-es-el-cotizador-gnp.md) |
 | `02_Arquitectura/` | Stack, estructura de carpetas y modelo de datos | [ADR-002-stack-y-estructura.md](./02_Arquitectura/ADR-002-stack-y-estructura.md) · [ADR-003-modelo-de-datos.md](./02_Arquitectura/ADR-003-modelo-de-datos.md) |
-| `03_Decisiones/` | Decisiones de diseño y de negocio ya tomadas | [ADR-004-catalogo-maestro-propio.md](./03_Decisiones/ADR-004-catalogo-maestro-propio.md) · [ADR-005-reglas-verificadas-gnp.md](./03_Decisiones/ADR-005-reglas-verificadas-gnp.md) · [ADR-006-evidencia-y-bitacora.md](./03_Decisiones/ADR-006-evidencia-y-bitacora.md) · [ADR-007-modulo-juega-y-compara.md](./03_Decisiones/ADR-007-modulo-juega-y-compara.md) |
+| `03_Decisiones/` | Decisiones de diseño y de negocio ya tomadas | [ADR-004-catalogo-maestro-propio.md](./03_Decisiones/ADR-004-catalogo-maestro-propio.md) · [ADR-005-reglas-verificadas-gnp.md](./03_Decisiones/ADR-005-reglas-verificadas-gnp.md) · [ADR-006-evidencia-y-bitacora.md](./03_Decisiones/ADR-006-evidencia-y-bitacora.md) · [ADR-007-modulo-juega-y-compara.md](./03_Decisiones/ADR-007-modulo-juega-y-compara.md) · [ADR-008-piso-minimo-por-paquete.md](./03_Decisiones/ADR-008-piso-minimo-por-paquete.md) |
 
 Fuera de las carpetas numeradas, en la raíz de `docs/`, viven documentos operativos que **no son ADR** y por eso no se numeran con la secuencia de ADR:
 
@@ -27,6 +27,8 @@ Fuera de las carpetas numeradas, en la raíz de `docs/`, viven documentos operat
 | [`02.10-rc-accidentes-conductor.md`](./02.10-rc-accidentes-conductor.md) | Accidentes al Conductor sobre Responsabilidad Civil: GNP la rechaza, `cat_coberturas` es correcta — cierra el pendiente técnico que dejó abierto `02.6`. Decisión de negocio también cerrada (2026-09-11): el hueco en RC queda permanente, ya cubierto por Equinox Limitada |
 | [`02.11-multipaquete-plantillas.md`](./02.11-multipaquete-plantillas.md) | Dos plantillas con coberturas propias en una sola llamada: confirmado (ADR-007 punto 7). Deja dos hallazgos de datos abiertos, con impacto en las plantillas ya cargadas |
 | [`02.12-bug-amparada.md`](./02.12-bug-amparada.md) | Bug "Amparada" corregido, soporte permanente de `GnpClient` hecho, límite de antigüedad de "Siempre en Agencia" investigado y **cerrado** (regla genérica `antiguedad_max_anios`, decisión de Beto aplicada: avisar y cotizar sin la cobertura) |
+| [`02.13-armador-libre-backend.md`](./02.13-armador-libre-backend.md) | Armador libre de coberturas, Fase 1 (sólo backend): `PlantillaServicio::puntoDePartida()`/`paraAdHoc()` y el servicio nuevo `ArmadorLibreServicio` — probado contra producción. Hallazgo real de datos: exclusión Robo Parcial / Robo Parcial Plus, agregada a `cat_coberturas_excluyentes` |
+| [`02.14-armador-libre-pantallas.md`](./02.14-armador-libre-pantallas.md) | Armador libre, Fase 2: pantalla `armador.php` (Personalizar / Armar desde cero), editor de coberturas movido a componente compartido, probado por la pantalla real contra producción. Corrige `ADR-005` punto 6: clave 37 es genérica, no específica de exclusión |
 
 ---
 
@@ -57,7 +59,8 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 ## Propuestas en curso
 
-- **ADR-007 — Módulo Juega y Compara:** paquetes propios de Equinox armados sobre coberturas configurables de GNP. **Propuesto**, pendiente sólo de la firma formal de Producto/TI — sus **7 puntos** están `[CONFIRMADO]` contra producción, y el módulo "GNP Juega y Compara" (comparar varias plantillas a la vez, separado de "GNP Cotizador") **ya está construido y probado contra producción**: vista y rutas nuevas (`?r=juega-y-compara`), servicio nuevo `JuegaYCompararServicio`, y dos ajustes de esquema encontrados al construir (`cot_resultados.plantilla_id`, y su `UNIQUE` reconstruido porque dos plantillas reales comparten `cve_paquete`). Ya no queda ningún pendiente técnico. Detalle en [03_Decisiones/ADR-007](./03_Decisiones/ADR-007-modulo-juega-y-compara.md), sección "Paso 2"; las pruebas que lo sustentan en [`02.6`](./02.6-coberturas-modificadas.md) a [`02.12`](./02.12-bug-amparada.md).
+- **ADR-007 — Módulo Juega y Compara:** paquetes propios de Equinox armados sobre coberturas configurables de GNP. **Propuesto**, pendiente sólo de la firma formal de Producto/TI — sus **7 puntos** están `[CONFIRMADO]` contra producción, y el módulo "GNP Juega y Compara" (comparar varias plantillas a la vez, separado de "GNP Cotizador") **ya está construido y probado contra producción**: vista y rutas nuevas (`?r=juega-y-compara`), servicio nuevo `JuegaYCompararServicio`, y dos ajustes de esquema encontrados al construir (`cot_resultados.plantilla_id`, y su `UNIQUE` reconstruido porque dos plantillas reales comparten `cve_paquete`). Ya no queda ningún pendiente técnico. Además, el armador libre de coberturas (`docs/02.13`/`02.14`) ya permite editar cualquier combinación sobre los seis paquetes reales, sin plantilla de por medio. Detalle en [03_Decisiones/ADR-007](./03_Decisiones/ADR-007-modulo-juega-y-compara.md), sección "Paso 2"; las pruebas que lo sustentan en [`02.6`](./02.6-coberturas-modificadas.md) a [`02.14`](./02.14-armador-libre-pantallas.md).
+- **ADR-008 — Piso mínimo por paquete:** las Básicas de cada uno de los seis paquetes reales de GNP, confirmadas contra producción — necesarias para que el armador libre (ADR-007) sepa qué es innegociable en cada paquete. La intersección de los seis es vacía (Auto Elite no comparte nada con Responsabilidad Civil), pero los otros cinco sí comparten un núcleo de 4 coberturas. Tres hallazgos de catálogo, todos investigados y corregidos: en Amplia Total, "Club GNP Plus" nunca cargado y "Eliminación de Deducible" mal marcada como Básica; en Auto Elite, "Auto Sustituto" con un nombre distinto al que GNP realmente usa ahí ("Auto Sustituto Pérdida Total"). **Confirmado, pendiente de la revisión final de Beto.** Detalle en [03_Decisiones/ADR-008](./03_Decisiones/ADR-008-piso-minimo-por-paquete.md).
 
 ---
 
@@ -65,12 +68,12 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 | | |
 |---|---|
-| Cotizaciones hechas contra producción | 26 (47 tarificaciones) |
+| Cotizaciones hechas contra producción | 36 (60 tarificaciones) |
 | Catálogo GNP descargado | 48,155 vehículos · 392 paquetes · 167 coberturas |
 | Catálogo maestro comercial | 107 marcas · 7,777 submarcas |
 | Homologadas con GNP | 3,461 (44.5%) |
 | Procedencias verificadas | 1 de 7 (sólo Residentes, `01`) |
-| Llamadas registradas en bitácora | 97 |
+| Llamadas registradas en bitácora | 114 |
 
 ---
 

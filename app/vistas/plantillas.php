@@ -13,26 +13,6 @@ foreach ($editando['coberturas'] ?? [] as $g) {
     $dedGuardada[$g['cve_cobertura']]  = $g['deducible'];
 }
 
-/** Selector real si hay menú de valores; texto libre sólo si esa cobertura no tiene ninguno cargado. */
-$campoValor = static function (string $nombreCampo, string $etiqueta, array $valores, string $valorActual, string $placeholder = ''): string {
-    if ($valores === []) {
-        return '<label class="campo-valor">' . h($etiqueta)
-             . '<input name="' . h($nombreCampo) . '" value="' . h($valorActual) . '" placeholder="' . h($placeholder) . '">'
-             . '<small class="ayuda">sin menú cargado</small></label>';
-    }
-    $html = '<label class="campo-valor">' . h($etiqueta) . '<select name="' . h($nombreCampo) . '">';
-    $html .= '<option value="">—</option>';
-    foreach ($valores as $v) {
-        $sel = $v === $valorActual ? ' selected' : '';
-        $html .= '<option value="' . h($v) . '"' . $sel . '>' . h($v) . '</option>';
-    }
-    // El valor guardado puede haber quedado fuera del menú actual (cambió el kit,
-    // o venía de antes de cargar cat_cobertura_valores) — no se pierde en silencio.
-    if ($valorActual !== '' && !in_array($valorActual, $valores, true)) {
-        $html .= '<option value="' . h($valorActual) . '" selected>' . h($valorActual) . ' (fuera del menú actual)</option>';
-    }
-    return $html . '</select></label>';
-};
 ?>
 
 <h1>Paquetes propios · Juega y Compara</h1>
@@ -104,29 +84,7 @@ $campoValor = static function (string $nombreCampo, string $etiqueta, array $val
       — confirmado contra GNP que no se puede salir de ahí (ADR-007 punto 3).
       Las excluyentes entre sí se desmarcan solas.
     </p>
-    <div id="coberturas" class="lista-coberturas">
-      <?php foreach ($coberturasIniciales as $c): ?>
-        <?php
-          $marcada = $editando !== null && array_key_exists($c['cve_cobertura'], $sumaGuardada);
-          $sumaVal = $sumaGuardada[$c['cve_cobertura']] ?? $c['sa_valor'];
-          $dedVal  = $dedGuardada[$c['cve_cobertura']]  ?? $c['ded_valor'];
-        ?>
-        <div class="fila-cobertura">
-          <label class="chip">
-            <input type="checkbox" name="coberturas[]" value="<?= h($c['cve_cobertura']) ?>"
-                   <?= $marcada ? 'checked' : '' ?>
-                   <?= $c['grupo_excl'] !== '' ? 'data-excl="' . h($c['grupo_excl']) . '"' : '' ?>>
-            <span><?= h($c['nombre']) ?></span>
-            <small class="marca-estado<?= $c['tipo'] === 'BASICA' ? ' ok' : '' ?>"><?= h($c['tipo']) ?></small>
-          </label>
-          <?= $campoValor('suma_' . $c['cve_cobertura'], 'Suma asegurada', $c['valores_suma'], (string) $sumaVal, $c['sa_unidad']) ?>
-          <?= $campoValor('ded_' . $c['cve_cobertura'], 'Deducible', $c['valores_deducible'], (string) $dedVal) ?>
-        </div>
-      <?php endforeach; ?>
-      <?php if ($coberturasIniciales === []): ?>
-        <p class="ayuda">Elige un paquete base para ver sus coberturas.</p>
-      <?php endif; ?>
-    </div>
+    <?php require RUTA_APP . '/vistas/parciales/editor_coberturas.php'; ?>
 
     <div class="acciones">
       <button class="btn primario"><?= $editando !== null ? 'Guardar cambios' : 'Crear plantilla' ?></button>
@@ -181,85 +139,9 @@ $campoValor = static function (string $nombreCampo, string $etiqueta, array $val
 </table>
 </div>
 
+<script src="<?= h(BASE_URL) ?>/assets/editor-coberturas.js"></script>
 <script>
 const API_COB = <?= json_encode(url('plantillas/api-coberturas')) ?>;
-const $  = (s) => document.querySelector(s);
-const el = (t, p = {}) => Object.assign(document.createElement(t), p);
-
-// Selector real si hay menú de valores (cat_cobertura_valores); texto libre
-// sólo si esa cobertura específica no tiene ninguno cargado (no debería pasar
-// hoy: importar_valores_coberturas.php cubre las 29 de cat_coberturas).
-function campoValor(nombre, etiqueta, valores, valorActual, placeholder) {
-  const w = el('label', { className: 'campo-valor' });
-  w.appendChild(document.createTextNode(etiqueta));
-  if (!valores || !valores.length) {
-    w.appendChild(el('input', { name: nombre, value: valorActual || '', placeholder: placeholder || '' }));
-    w.appendChild(el('small', { className: 'ayuda', textContent: 'sin menú cargado' }));
-    return w;
-  }
-  const sel = el('select', { name: nombre });
-  sel.appendChild(el('option', { value: '', textContent: '—' }));
-  for (const v of valores) sel.appendChild(el('option', { value: v, textContent: v, selected: v === valorActual }));
-  w.appendChild(sel);
-  return w;
-}
-
-function filaCobertura(c) {
-  const w = el('div', { className: 'fila-cobertura' });
-  const chip = el('label', { className: 'chip' });
-  const i = el('input', { type: 'checkbox', name: 'coberturas[]', value: c.cve_cobertura });
-  if (c.grupo_excl) { i.dataset.excl = c.grupo_excl; }
-  chip.append(
-    i,
-    el('span', { textContent: c.nombre }),
-    el('small', { className: 'marca-estado' + (c.tipo === 'BASICA' ? ' ok' : ''), textContent: c.tipo })
-  );
-  w.append(
-    chip,
-    campoValor('suma_' + c.cve_cobertura, 'Suma asegurada', c.valores_suma, c.sa_valor, c.sa_unidad),
-    campoValor('ded_' + c.cve_cobertura, 'Deducible', c.valores_deducible, c.ded_valor, '')
-  );
-  return w;
-}
-
-async function cargarCoberturas() {
-  const cve = $('#cve_paquete').value;
-  const cont = $('#coberturas');
-  cont.innerHTML = '';
-  if (!cve) {
-    cont.appendChild(el('p', { className: 'ayuda', textContent: 'Elige un paquete base para ver sus coberturas.' }));
-    return;
-  }
-  const u = new URL(API_COB, location.href);
-  u.searchParams.set('cve_paquete', cve);
-  const r = await fetch(u, { headers: { 'Accept': 'application/json' } });
-  const datos = r.ok ? (await r.json()).datos || [] : [];
-  if (!datos.length) {
-    cont.appendChild(el('p', { className: 'ayuda', textContent: 'Ese paquete no tiene coberturas cargadas en cat_coberturas.' }));
-    return;
-  }
-  for (const c of datos) cont.appendChild(filaCobertura(c));
-  activarExclusion();
-}
-
-// Bloquea marcar dos coberturas del mismo grupo excluyente a la vez, con
-// mensaje claro — ADR-007 punto 6. GNP rechaza la cotización completa si
-// llegan juntas (cat_coberturas_excluyentes).
-function activarExclusion() {
-  document.querySelectorAll('#coberturas input[data-excl]').forEach((i) => {
-    i.addEventListener('change', () => {
-      if (!i.checked) return;
-      const enElMismoGrupo = [...document.querySelectorAll('#coberturas input[data-excl="' + i.dataset.excl + '"]')]
-        .filter((o) => o !== i && o.checked);
-      if (enElMismoGrupo.length) {
-        enElMismoGrupo.forEach((o) => { o.checked = false; });
-        alert('"' + i.closest('.chip').querySelector('span').textContent + '" es excluyente con lo que acabas de desmarcar '
-            + '(grupo "' + i.dataset.excl + '"). GNP no permite pedir las dos juntas — sólo se dejó la que acabas de marcar.');
-      }
-    });
-  });
-}
-
-$('#cve_paquete').addEventListener('change', cargarCoberturas);
-activarExclusion(); // por si la carga inicial (edición) ya trae excluyentes marcadas
+document.querySelector('#cve_paquete').addEventListener('change', () => EditorCoberturas.cargar(API_COB));
+EditorCoberturas.activarExclusion(); // por si la carga inicial (edición) ya trae excluyentes marcadas
 </script>
