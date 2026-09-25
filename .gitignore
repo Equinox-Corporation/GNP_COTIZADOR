@@ -3,3 +3,8 @@ datos/*.sqlite
 datos/*.sqlite-wal
 datos/*.sqlite-shm
 datos/pdf/
+app/core/*.db
+app/core/*.bak_*
+datos/*.xlsx
+datos/*.csv
+datos/*.zip
