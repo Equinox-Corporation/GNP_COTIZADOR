@@ -12,7 +12,7 @@
   // contenido automático a propósito — para el tamaño de este proyecto,
   // subir el número a mano alcanza; si se vuelve tedioso, ahí sí vale la
   // pena automatizarlo (ej. con la fecha de modificación del archivo).
-  $versionEstilo = 4;
+  $versionEstilo = 5;
 ?>
 <link rel="stylesheet" href="<?= h(BASE_URL) ?>/assets/estilo.css?v=<?= $versionEstilo ?>">
 </head>
@@ -29,6 +29,17 @@
       <?php if (Auth::esAdmin()): ?>
         <a href="<?= h(url('usuarios')) ?>"<?= ($ruta ?? '') === 'usuarios' ? ' class="activo"' : '' ?>>Usuarios</a>
         <a href="<?= h(url('plantillas')) ?>"<?= ($ruta ?? '') === 'plantillas' ? ' class="activo"' : '' ?>>Paquetes propios</a>
+        <?php
+          // Menú armado desde sys_aseguradoras (ADR-010 punto 2): sólo
+          // administradores ven las que aún no cotizan, con su leyenda.
+          $enPreparacion = array_filter(
+              Aseguradoras::todas(Db::get()),
+              static fn (array $a): bool => $a['estado'] !== Aseguradoras::OPERATIVA
+          );
+        ?>
+        <?php foreach ($enPreparacion as $a): ?>
+          <span class="en-preparacion" title="<?= h($a['nombre']) ?> — en preparación"><?= h($a['nombre']) ?> <small>(en preparación)</small></span>
+        <?php endforeach; ?>
       <?php endif; ?>
     </nav>
     <div class="sesion">

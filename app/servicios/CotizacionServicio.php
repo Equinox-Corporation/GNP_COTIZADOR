@@ -399,9 +399,15 @@ final class CotizacionServicio
         return $res;
     }
 
-    public static function historial(int $limite = 50): array
+    public static function historial(int $limite = 50, string $aseguradora = ''): array
     {
-        return Db::todos('SELECT * FROM v_cotizaciones ORDER BY id DESC LIMIT ?', [$limite]);
+        if ($aseguradora === '') {
+            return Db::todos('SELECT * FROM v_cotizaciones ORDER BY id DESC LIMIT ?', [$limite]);
+        }
+        return Db::todos(
+            'SELECT * FROM v_cotizaciones WHERE aseguradora = ? ORDER BY id DESC LIMIT ?',
+            [$aseguradora, $limite]
+        );
     }
 
     public static function vencida(?array $cot): bool

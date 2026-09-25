@@ -329,7 +329,7 @@ CREATE INDEX IF NOT EXISTS ix_llam_fecha ON sys_llamadas (ejecutado_en DESC);
 CREATE VIEW IF NOT EXISTS v_cotizaciones AS
 SELECT  c.id, c.folio, c.estado, c.creada_en, c.vence_en,
         c.descripcion_veh, c.modelo, c.tipo_persona, c.procedencia,
-        c.contratante, c.conductor_edad, c.conductor_cp,
+        c.contratante, c.conductor_edad, c.conductor_cp, c.aseguradora,
         (SELECT COUNT(*) FROM cot_resultados r WHERE r.cotizacion_id = c.id)        AS paquetes,
         (SELECT MIN(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS desde,
         (SELECT MAX(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS hasta,
@@ -487,6 +487,27 @@ SQL);
         }
         if (!in_array('datos_aseguradora_json', $hay, true)) {
             $pdo->exec("ALTER TABLE cot_cotizaciones ADD COLUMN datos_aseguradora_json TEXT NOT NULL DEFAULT '{}'");
+        }
+
+        // v_cotizaciones necesita la columna aseguradora para poder filtrar el
+        // historial por compañía (ADR-010 punto 6 de la Fase 1). CREATE VIEW
+        // IF NOT EXISTS de arriba no toca una vista que ya existe, así que en
+        // una base con historial previo hay que recrearla a mano.
+        if (!in_array('aseguradora', $columnas('v_cotizaciones'), true)) {
+            $pdo->exec('DROP VIEW IF EXISTS v_cotizaciones');
+            $pdo->exec(
+                "CREATE VIEW v_cotizaciones AS
+                 SELECT  c.id, c.folio, c.estado, c.creada_en, c.vence_en,
+                         c.descripcion_veh, c.modelo, c.tipo_persona, c.procedencia,
+                         c.contratante, c.conductor_edad, c.conductor_cp, c.aseguradora,
+                         (SELECT COUNT(*) FROM cot_resultados r WHERE r.cotizacion_id = c.id)        AS paquetes,
+                         (SELECT MIN(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS desde,
+                         (SELECT MAX(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS hasta,
+                         (SELECT COUNT(*) FROM cot_documentos d WHERE d.cotizacion_id = c.id)        AS pdfs,
+                         CASE WHEN c.vence_en IS NULL THEN NULL
+                              WHEN date(c.vence_en) < date('now','localtime') THEN 1 ELSE 0 END      AS vencida
+                 FROM    cot_cotizaciones c"
+            );
         }
     }
 
