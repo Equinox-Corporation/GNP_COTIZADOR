@@ -6,6 +6,8 @@
 
 Es el ADR fundacional: fija la identidad y el alcance del proyecto. Todo lo demás se apoya aquí.
 
+> ⚠️ _(CC, 2026-09-24)_ — **Reemplazado parcialmente por [ADR-009](./ADR-009-plataforma-de-cotizadores-por-aseguradora.md).** Sólo cambia el punto 5 en la frase *"Habla con una sola aseguradora: GNP"* y la consideración futura *"Otras aseguradoras… sería otro proyecto y otra decisión"*: el proyecto pasa a ser una plataforma con un módulo por aseguradora, dentro de la misma aplicación. *"No es un multicotizador"* se mantiene (no hay comparativo entre compañías) y *"cotizar, no emitir"* aplica a todas. El resto de este ADR sigue vigente y no se reescribe.
+
 ## 🧠 Contexto
 
 ### De dónde viene
@@ -61,7 +63,7 @@ La arquitectura ya contempla una **versión pública** —una pantalla de cotiza
 
 ### 5. Qué NO es `[CONFIRMADO]`
 
-- **No es un multicotizador.** Habla con una sola aseguradora: GNP. Comparar entre aseguradoras es problema de NEXO y del robot de SICAS.
+- **No es un multicotizador.** Habla con una sola aseguradora: GNP. _(Reemplazado parcialmente por ADR-009: hoy hay un módulo por aseguradora, sin comparativo entre ellas.)_ Comparar entre aseguradoras es problema de NEXO y del robot de SICAS.
 - **No es un sistema de pólizas.** La vida de la póliza vive en SICAS.
 - **No es un CRM.** No hay prospectos, ni pipeline, ni seguimiento comercial.
 

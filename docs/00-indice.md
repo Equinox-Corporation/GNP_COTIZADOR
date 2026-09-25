@@ -1,4 +1,4 @@
-# Índice de documentación — Cotizador GNP
+# Índice de documentación — Cotizador Equinox (nació como Cotizador GNP)
 
 Biblioteca del proyecto. Cuando necesites buscar algo, empieza aquí: cada fila te dice en qué carpeta vive la respuesta.
 
@@ -10,9 +10,10 @@ Biblioteca del proyecto. Cuando necesites buscar algo, empieza aquí: cada fila 
 
 | Carpeta | Contenido | Archivos |
 |---|---|---|
-| `01_Generales/` | Qué es el proyecto, cómo nació, para qué sirve | [ADR-001-que-es-el-cotizador-gnp.md](./01_Generales/ADR-001-que-es-el-cotizador-gnp.md) |
-| `02_Arquitectura/` | Stack, estructura de carpetas y modelo de datos | [ADR-002-stack-y-estructura.md](./02_Arquitectura/ADR-002-stack-y-estructura.md) · [ADR-003-modelo-de-datos.md](./02_Arquitectura/ADR-003-modelo-de-datos.md) |
+| `01_Generales/` | Qué es el proyecto, cómo nació, para qué sirve | [ADR-001-que-es-el-cotizador-gnp.md](./01_Generales/ADR-001-que-es-el-cotizador-gnp.md) · [ADR-009-plataforma-de-cotizadores-por-aseguradora.md](./01_Generales/ADR-009-plataforma-de-cotizadores-por-aseguradora.md) |
+| `02_Arquitectura/` | Stack, estructura de carpetas y modelo de datos | [ADR-002-stack-y-estructura.md](./02_Arquitectura/ADR-002-stack-y-estructura.md) · [ADR-003-modelo-de-datos.md](./02_Arquitectura/ADR-003-modelo-de-datos.md) · [ADR-010-contrato-comun-de-modulos-por-aseguradora.md](./02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md) |
 | `03_Decisiones/` | Decisiones de diseño y de negocio ya tomadas | [ADR-004-catalogo-maestro-propio.md](./03_Decisiones/ADR-004-catalogo-maestro-propio.md) · [ADR-005-reglas-verificadas-gnp.md](./03_Decisiones/ADR-005-reglas-verificadas-gnp.md) · [ADR-006-evidencia-y-bitacora.md](./03_Decisiones/ADR-006-evidencia-y-bitacora.md) · [ADR-007-modulo-juega-y-compara.md](./03_Decisiones/ADR-007-modulo-juega-y-compara.md) · [ADR-008-piso-minimo-por-paquete.md](./03_Decisiones/ADR-008-piso-minimo-por-paquete.md) |
+| `aseguradoras/` | Estado de integración por compañía (HDI, Qualitas, Zurich) y kit mínimo que se pide a cada una. Documentos operativos, no ADR | [00-kit-minimo-por-aseguradora.md](./aseguradoras/00-kit-minimo-por-aseguradora.md) · [hdi/](./aseguradoras/hdi/00-estado.md) · [qualitas/](./aseguradoras/qualitas/00-estado.md) · [zurich/](./aseguradoras/zurich/00-estado.md) |
 
 Fuera de las carpetas numeradas, en la raíz de `docs/`, viven documentos operativos que **no son ADR** y por eso no se numeran con la secuencia de ADR:
 
@@ -54,6 +55,7 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 - **ADR-004 — Catálogo maestro propio:** el vehículo se identifica con un ID nuestro, no con el de ninguna aseguradora. Las aseguradoras apuntan hacia el catálogo maestro, no al revés. Detalle en [03_Decisiones/ADR-004](./03_Decisiones/ADR-004-catalogo-maestro-propio.md).
 - **ADR-005 — Reglas verificadas contra GNP:** el precio es `TOTAL_PAGAR`, quien tarifica es el conductor, un `504` no es rechazo, la cotización vive 15 días. Todo comprobado contra el servicio real. Detalle en [03_Decisiones/ADR-005](./03_Decisiones/ADR-005-reglas-verificadas-gnp.md).
 - **ADR-006 — Evidencia y bitácora:** cada llamada guarda su XML de ida y vuelta con la contraseña enmascarada. Es requisito de GNP para soporte y certificación. Detalle en [03_Decisiones/ADR-006](./03_Decisiones/ADR-006-evidencia-y-bitacora.md).
+- **ADR-009 — Plataforma de cotizadores por aseguradora:** el proyecto deja de ser sólo de GNP. Es una plataforma ("Cotizador Equinox") con un módulo por compañía dentro de la misma aplicación: mismo login, usuarios e historial; cada compañía con sus datos y sus reglas. Sin comparativo entre compañías; el MultiCotizador queda como alcance futuro probable. Sólo se cotiza, en todas. Reemplaza parcialmente a ADR-001. Detalle en [01_Generales/ADR-009](./01_Generales/ADR-009-plataforma-de-cotizadores-por-aseguradora.md).
 
 ---
 
@@ -63,6 +65,8 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 - **ADR-008 — Piso mínimo por paquete:** las Básicas de cada uno de los seis paquetes reales de GNP, confirmadas contra producción — necesarias para que el armador libre (ADR-007) sepa qué es innegociable en cada paquete. La intersección de los seis es vacía (Auto Elite no comparte nada con Responsabilidad Civil), pero los otros cinco sí comparten un núcleo de 4 coberturas. Tres hallazgos de catálogo, todos investigados y corregidos: en Amplia Total, "Club GNP Plus" nunca cargado y "Eliminación de Deducible" mal marcada como Básica; en Auto Elite, "Auto Sustituto" con un nombre distinto al que GNP realmente usa ahí ("Auto Sustituto Pérdida Total"). **Confirmado, pendiente de la revisión final de Beto.** Detalle en [03_Decisiones/ADR-008](./03_Decisiones/ADR-008-piso-minimo-por-paquete.md).
 
 ---
+
+- **ADR-010 — Contrato común de los módulos por aseguradora:** carpeta por compañía, registro `sys_aseguradoras` con estados (PREPARADA → EN_INTEGRACION → OPERATIVA), contrato de cuatro botones, candado de emisión en cada cliente, columna `aseguradora` en las tablas comunes, catálogos con prefijo por compañía y resultado en formato común. **Propuesto**, pendiente de revisión. Detalle en [02_Arquitectura/ADR-010](./02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md).
 
 ## Estado del proyecto — 2026-09-10
 
@@ -94,3 +98,5 @@ _(Beto, 2026-09-10)_ — Hallazgos de la revisión del repositorio. No son decis
 ---
 
 Última actualización: 2026-09-10 — se crea la biblioteca con ADR-001 a ADR-006; se agrega ADR-007 (módulo Juega y Compara, propuesto) y las pruebas `02.6` a `02.12`. Con `02.12` se corrige el bug de `"Amparada"`, se hace permanente el soporte de `GnpClient` a coberturas por paquete, y se cierra de forma genérica el límite de antigüedad de "Siempre en Agencia" (se omite y se avisa, decisión de Beto). Con los tres pendientes cerrados de verdad, se construye el módulo nuevo "GNP Juega y Compara" (Paso 2 de ADR-007): vista y rutas propias, servicio `JuegaYCompararServicio`, y un ajuste de esquema en `cot_resultados` (columna `plantilla_id` + `UNIQUE` reconstruido) encontrado al comprobar que dos plantillas reales comparten `cve_paquete` de GNP.
+
+Actualización 2026-09-24 _(CC)_: se agregan ADR-009 (plataforma de cotizadores por aseguradora, confirmado) y ADR-010 (contrato común de módulos, propuesto), la carpeta `aseguradoras/` con el kit mínimo y el estado de HDI, Qualitas y Zurich, y la nota de reemplazo parcial en ADR-001.
