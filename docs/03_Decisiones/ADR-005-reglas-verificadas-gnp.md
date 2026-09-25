@@ -128,26 +128,21 @@ Las otras seis están en `cat_procedencias` con la clave **vacía**, esperando q
 
 > Aquí está el ejemplo más claro de por qué importa distinguir lo verificado de lo supuesto: las claves del Excel del kit (10 Legalizado, 03 Fronterizo…) parecían buenas, y resulta que no están comprobadas.
 
-### 12. Posible movimiento de tarifa entre el 10 y el 25 de septiembre `[PENDIENTE]`
+### 12. Variación de precio del 10 al 14 de septiembre, atribuida a tarifa `[CONFIRMADO]`
 
-Al confirmar la Fase 1 de la plataforma de aseguradoras ([ADR-010](../02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md)), se repitieron dos cotizaciones reales contra producción con **la misma petición XML, byte a byte** (mismo vehículo, mismo conductor, mismos paquetes/plantilla — sólo cambian fecha de vigencia y el nombre de prueba del contratante, que no tarifican):
+**Cerrado (Albert, 2026-09-25) — decisión de negocio:** la variación del 10 al 14 de septiembre se atribuye a un ajuste de tarifa de GNP. La petición XML fue idéntica (#28 vs #41), así que el código queda descartado. No se consulta a GNP ni se toma acción. Si más adelante se detecta una variación importante o que bloquee la operación, se reabre.
 
-| Par | Vehículo | Paquete/plantilla | Fecha original | Fecha repetida | Precio original | Precio repetido | Diferencia |
+Al confirmar la Fase 1 de la plataforma de aseguradoras ([ADR-010](../02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md)), se repitió una cotización real contra producción con **la misma petición XML, byte a byte** (mismo vehículo, mismo conductor, mismos paquetes — sólo cambian fecha de vigencia y el nombre de prueba del contratante, que no tarifican):
+
+| Par | Vehículo | Paquete | Fecha original | Fecha repetida | Precio original | Precio repetido | Diferencia |
 |---|---|---|---|---|---|---|---|
 | cot #28 → #41 | Honda Fit Fun 2015 | Amplia (`PRS0009355`) | 2026-09-10 | 2026-09-25 | $8,183.48 | $9,005.12 | **+10.04%** |
 | cot #28 → #41 | Honda Fit Fun 2015 | Premium (`PRS0010536`) | 2026-09-10 | 2026-09-25 | $12,094.81 | $13,336.66 | **+10.27%** |
 | cot #28 → #41 | Honda Fit Fun 2015 | Auto Elite (`PRP0000357`) | 2026-09-10 | 2026-09-25 | $3,438.26 | $3,732.62 | **+8.56%** |
-| cot #39 → #42 | Nissan March Advance 2024 | plantilla 76 "Equinox Amplia" (`PRS0009355`) | 2026-09-14 | 2026-09-25 | $16,309.67 | $16,309.67 | **0.00%** |
 
 El precio del Honda Fit/Amplia estándar ($8,183.48) no fue un caso aislado: se repite igual en otras dos cotizaciones el mismo 10-sep (`cot #17` 14:55, `cot #19` 16:58), con la misma combinación por omisión del paquete.
 
-**Lo que no cuadra limpio, y por eso queda `[PENDIENTE]` y no como hecho confirmado:** el par del Honda Fit subió entre 8.6% y 10.3% en 15 días (10→25 sep), pero el par del Nissan March/plantilla Equinox Amplia —mismo `cve_paquete` `PRS0009355`, sólo que con las coberturas propias de esa plantilla— **no se movió nada** en 11 días (14→25 sep). Si fuera un ajuste general de tarifa de GNP, se esperaría ver algo de movimiento en los dos casos, no en uno solo. Posibles explicaciones sin confirmar: el cambio es específico por vehículo/línea (no general), por la combinación exacta de coberturas, o por otra variable que no se ha identificado — no se descarta tampoco que sea el comportamiento normal y esperado de GNP y no un "cambio" en el sentido de un evento puntual.
-
-Se revisó el código fuente (`git log` sobre `GnpClient.php`, `CotizacionServicio.php` y `PlantillaServicio.php` desde el 10-sep-2026): el único cambio en la ventana que toca la construcción del XML de cotizar es el commit `ac0866c` (10-sep-2026 21:04, **en `main`, anterior a la rama `feature/plataforma-aseguradoras`** — no es parte de esta Fase 1), que agrega soporte de coberturas propias por paquete (para Juega y Compara). Es un no-op para el flujo manual sin plantilla: la petición XML de #28 y #41 salió idéntica, así que ese commit no explica la diferencia de precio. Ningún commit de `feature/plataforma-aseguradoras` toca `GnpClient.php`, `CotizacionServicio::cotizar()` ni `PlantillaServicio.php`.
-
-**No se descarta ni se confirma con esto que GNP haya movido tarifa.** Falta:
-- Confirmar con GNP (o con Comercial, si hay aviso de renovación de tarifa) si hubo un ajuste entre el 10 y el 25 de septiembre.
-- Repetir el control con el mismo vehículo (Nissan March) por el flujo manual "Cotizador" y con el mismo vehículo (Honda Fit) por "Juega y Compara", para saber si el movimiento es del vehículo o del flujo — hoy cada flujo se probó con un vehículo distinto, por ser las cotizaciones más recientes de cada uno.
+Se revisó el código fuente (`git log` sobre `GnpClient.php`, `CotizacionServicio.php` y `PlantillaServicio.php` desde el 10-sep-2026): el único cambio en la ventana que toca la construcción del XML de cotizar es el commit `ac0866c` (10-sep-2026 21:04, **en `main`, anterior a la rama `feature/plataforma-aseguradoras`** — no es parte de esta Fase 1), que agrega soporte de coberturas propias por paquete (para Juega y Compara). Es un no-op para el flujo manual sin plantilla: la petición XML de #28 y #41 salió idéntica, así que ese commit no explica la diferencia de precio. Ningún commit de `feature/plataforma-aseguradoras` toca `GnpClient.php`, `CotizacionServicio::cotizar()` ni `PlantillaServicio.php`. **El código queda descartado como causa.**
 
 ## ✅ Beneficios
 
@@ -190,7 +185,6 @@ Se revisó el código fuente (`git log` sobre `GnpClient.php`, `CotizacionServic
 - Claves de las seis procedencias no verificadas.
 - Bloque "Contacta a tu agente" vacío en el PDF de GNP.
 - Confirmar si `DERECHOS_POLIZA` varía por producto o procedencia.
-- Punto 12: confirmar con GNP si hubo movimiento de tarifa entre el 10 y el 25-sep-2026, y repetir el control cruzando vehículo × flujo para aislar la causa.
 
 ## Referencias
 

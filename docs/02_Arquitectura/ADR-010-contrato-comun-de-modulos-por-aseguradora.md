@@ -201,6 +201,9 @@ Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` p
 - Menú (admin) y filtro de historial armados desde `sys_aseguradoras`.
 - Regresión de GNP sin llamadas: `php -l` a los 55 archivos de `app/` y `public/` sin errores; pantallas cargadas por HTTP (login, cotizar, historial con y sin filtro, plantillas, juega y compara, usuarios) contra una copia de la base, con un usuario admin y uno no-admin — sin errores fatales, permisos de admin respetados (403 para no-admin en `usuarios`). No se hizo ninguna llamada a GNP.
 - Convención de prefijos del punto 6 anotada en [ADR-003](./ADR-003-modelo-de-datos.md).
+- Regresión con 2 llamadas reales de control contra producción (autorizadas por Manu): cot #28 → #41 (Cotizador, 3 paquetes) y cot #39 → #42 (Juega y Compara, plantilla 76). Migraciones aplicadas y comprobadas contra la base real: 38 cotizaciones antes, 40 después (38 + las 2 de control), las 40 marcadas `GNP` en `cot_cotizaciones`/`cot_resultados`/`cot_documentos`/`sys_llamadas`. Petición XML idéntica byte a byte contra el original en ambos pares (sólo difieren vigencia y el nombre de prueba del contratante). Evidencia y Comparativo Multi-Plan (PDF/Excel) generados sin problema para las 2 cotizaciones nuevas. Precio con variación (+8.6% a +10.3% en el par del Cotizador, 0% en el de Juega y Compara): atribuido a tarifa de GNP, ver [ADR-005 punto 12](../03_Decisiones/ADR-005-reglas-verificadas-gnp.md).
+
+**Nota para futuras regresiones de control:** al repetir una cotización para comparar, copiar también el **nombre del contratante** tal cual quedó guardado (`cot_cotizaciones.contratante`), no sólo vehículo/CP/edad/sexo/tipo de persona/paquetes. No tarifica, pero repetirlo exacto evita que el diff del XML de petición traiga ruido que hay que explicar aparte cada vez.
 
 ## Referencias
 
