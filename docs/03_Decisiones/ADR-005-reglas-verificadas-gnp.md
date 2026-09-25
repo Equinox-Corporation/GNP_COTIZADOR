@@ -128,6 +128,22 @@ Las otras seis están en `cat_procedencias` con la clave **vacía**, esperando q
 
 > Aquí está el ejemplo más claro de por qué importa distinguir lo verificado de lo supuesto: las claves del Excel del kit (10 Legalizado, 03 Fronterizo…) parecían buenas, y resulta que no están comprobadas.
 
+### 12. Variación de precio del 10 al 14 de septiembre, atribuida a tarifa `[CONFIRMADO]`
+
+**Cerrado (Albert, 2026-09-25) — decisión de negocio:** la variación del 10 al 14 de septiembre se atribuye a un ajuste de tarifa de GNP. La petición XML fue idéntica (#28 vs #41), así que el código queda descartado. No se consulta a GNP ni se toma acción. Si más adelante se detecta una variación importante o que bloquee la operación, se reabre.
+
+Al confirmar la Fase 1 de la plataforma de aseguradoras ([ADR-010](../02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md)), se repitió una cotización real contra producción con **la misma petición XML, byte a byte** (mismo vehículo, mismo conductor, mismos paquetes — sólo cambian fecha de vigencia y el nombre de prueba del contratante, que no tarifican):
+
+| Par | Vehículo | Paquete | Fecha original | Fecha repetida | Precio original | Precio repetido | Diferencia |
+|---|---|---|---|---|---|---|---|
+| cot #28 → #41 | Honda Fit Fun 2015 | Amplia (`PRS0009355`) | 2026-09-10 | 2026-09-25 | $8,183.48 | $9,005.12 | **+10.04%** |
+| cot #28 → #41 | Honda Fit Fun 2015 | Premium (`PRS0010536`) | 2026-09-10 | 2026-09-25 | $12,094.81 | $13,336.66 | **+10.27%** |
+| cot #28 → #41 | Honda Fit Fun 2015 | Auto Elite (`PRP0000357`) | 2026-09-10 | 2026-09-25 | $3,438.26 | $3,732.62 | **+8.56%** |
+
+El precio del Honda Fit/Amplia estándar ($8,183.48) no fue un caso aislado: se repite igual en otras dos cotizaciones el mismo 10-sep (`cot #17` 14:55, `cot #19` 16:58), con la misma combinación por omisión del paquete.
+
+Se revisó el código fuente (`git log` sobre `GnpClient.php`, `CotizacionServicio.php` y `PlantillaServicio.php` desde el 10-sep-2026): el único cambio en la ventana que toca la construcción del XML de cotizar es el commit `ac0866c` (10-sep-2026 21:04, **en `main`, anterior a la rama `feature/plataforma-aseguradoras`** — no es parte de esta Fase 1), que agrega soporte de coberturas propias por paquete (para Juega y Compara). Es un no-op para el flujo manual sin plantilla: la petición XML de #28 y #41 salió idéntica, así que ese commit no explica la diferencia de precio. Ningún commit de `feature/plataforma-aseguradoras` toca `GnpClient.php`, `CotizacionServicio::cotizar()` ni `PlantillaServicio.php`. **El código queda descartado como causa.**
+
 ## ✅ Beneficios
 
 - Cada regla evita un error concreto que ya costó descubrir.

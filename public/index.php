@@ -19,6 +19,8 @@ Env::cargar(RUTA_BASE . '/config/.env.local');
 define('BASE_URL', rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/'));
 
 foreach (['core/Esquema', 'core/Db', 'core/Auth', 'core/GnpClient', 'core/PdfBasico',
+          'plataforma/CotizadorAseguradora', 'plataforma/Resultado', 'plataforma/Aseguradoras', 'plataforma/CandadoEmision',
+          'aseguradoras/Gnp/AseguradoraGnp',
           'servicios/CatalogoServicio', 'servicios/CotizacionServicio', 'servicios/ImpresionServicio',
           'servicios/EvidenciaServicio', 'servicios/UsuarioServicio', 'servicios/ComparativoServicio',
           'servicios/PlantillaServicio', 'servicios/JuegaYCompararServicio', 'servicios/ArmadorLibreServicio'] as $c) {
@@ -416,7 +418,12 @@ switch ($ruta) {
         exit;
 
     case 'historial':
-        vista('historial', ['filas' => CotizacionServicio::historial()]);
+        $aseguradoraFiltro = (string) ($_GET['aseguradora'] ?? '');
+        vista('historial', [
+            'filas'       => CotizacionServicio::historial(50, $aseguradoraFiltro),
+            'aseguradora' => $aseguradoraFiltro,
+            'aseguradoras' => Aseguradoras::visiblesPara(Db::get(), Auth::esAdmin()),
+        ]);
         exit;
 
     // ─── Administración de usuarios — sólo administradores ─────────────────

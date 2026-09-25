@@ -2,7 +2,7 @@
 
 ## 📌 Estado
 
-**Propuesto** _(CC, 2026-09-24)_. Pendiente de la revisión de Albert. Producto/Negocio ⏳ · TI/Arquitectura ⏳.
+**Confirmado (Albert, 2026-09-25)**. Producto/Negocio ✅ · TI/Arquitectura ✅.
 
 Implementa [ADR-009](../01_Generales/ADR-009-plataforma-de-cotizadores-por-aseguradora.md): la plataforma tiene un módulo por aseguradora. Aquí se fija **qué tiene que cumplir cada módulo** para que convivan sin estorbarse y para que el MultiCotizador futuro sea posible. Se apoya en [ADR-002](./ADR-002-stack-y-estructura.md) (stack) y [ADR-003](./ADR-003-modelo-de-datos.md) (datos).
 
@@ -71,9 +71,9 @@ Por qué importa: el resto de la plataforma (historial, evidencia, mensajes al u
 
 ### 4. Candado de emisión en cada cliente `[CONFIRMADO]`
 
-Cada cliente declara su lista de rutas prohibidas (emisión, cobro, cancelación), como ya hace `GnpClient` con `PROHIBIDAS`, y la valida antes de cada llamada. Es condición para que un módulo pase a `EN_INTEGRACION`. Se apoya en ADR-009, punto 5.
+Cada cliente declara su lista de rutas prohibidas (emisión, cobro, cancelación) y la valida antes de cada llamada. `GnpClient` sigue con su propia lista `PROHIBIDAS` sin tocarse; los clientes nuevos reutilizan `app/plataforma/CandadoEmision.php` (`use CandadoEmision;` + `validarRuta()`), para no reinventar el candado en cada compañía. Es condición para que un módulo pase a `EN_INTEGRACION`. Se apoya en ADR-009, punto 5.
 
-### 5. Las tablas comunes llevan la columna `aseguradora` `[PENDIENTE]`
+### 5. Las tablas comunes llevan la columna `aseguradora` `[CONFIRMADO]`
 
 `cot_cotizaciones`, `cot_resultados`, `cot_documentos` y `sys_llamadas` reciben:
 
@@ -81,7 +81,7 @@ Cada cliente declara su lista de rutas prohibidas (emisión, cobro, cancelación
 aseguradora TEXT NOT NULL DEFAULT 'GNP'
 ```
 
-Se agrega con el mecanismo que ya usa `Esquema::migrar()`: columna nueva con valor por omisión. **Todo lo existente queda marcado como GNP sin que nadie lo toque**, y el flujo actual no cambia. Pendiente hasta aplicarlo y comprobar GNP de punta a punta.
+Se agrega con el mecanismo que ya usa `Esquema::migrar()`: columna nueva con valor por omisión. **Todo lo existente queda marcado como GNP sin que nadie lo toque**, y el flujo actual no cambia. Aplicada y comprobada el 25-sep-2026: 38 cotizaciones antes y después de la migración, las 38 marcadas `GNP`, corrida repetida sin errores (idempotente).
 
 ### 6. Los catálogos son propios de cada compañía `[CONFIRMADO]`
 
@@ -100,11 +100,11 @@ Es la convención más importante para el MultiCotizador futuro. Venga como veng
 
 ### 8. Los datos del solicitante usan los mismos nombres `[CONFIRMADO]`
 
-Tipo de persona, edad, CP, sexo y fecha de nacimiento del conductor, y los datos del contratante, con los nombres que ya tiene `cot_cotizaciones`. Lo que una compañía pida de más (uso del vehículo, por ejemplo, para la Pick-up Comercial de HDI) va en una columna nueva `datos_aseguradora_json` `[PENDIENTE]`.
+Tipo de persona, edad, CP, sexo y fecha de nacimiento del conductor, y los datos del contratante, con los nombres que ya tiene `cot_cotizaciones`. Lo que una compañía pida de más (uso del vehículo, por ejemplo, para la Pick-up Comercial de HDI) va en una columna nueva `datos_aseguradora_json`, agregada y probada el 25-sep-2026 junto con el resto de las columnas del punto 9 `[CONFIRMADO]`.
 
 Por qué: el día que exista un formulario único, sólo tiene que saber llenar estos campos una vez.
 
-### 9. El vehículo: la clave de la compañía siempre, la del catálogo maestro cuando se sepa `[PENDIENTE]`
+### 9. El vehículo: la clave de la compañía siempre, la del catálogo maestro cuando se sepa `[CONFIRMADO la columna · PENDIENTE quién la llena]`
 
 `cot_cotizaciones` recibe dos columnas nuevas:
 
@@ -112,6 +112,8 @@ Por qué: el día que exista un formulario único, sólo tiene que saber llenar 
 - `submarca_id`: el ID del catálogo maestro ([ADR-004](../03_Decisiones/ADR-004-catalogo-maestro-propio.md)), **puede quedar vacía**. No bloquea nada hoy y mañana es el puente para decir "este es el mismo coche".
 
 Homologar el catálogo de cada compañía contra el maestro es trabajo deseable, **no requisito** para que el módulo opere.
+
+Las columnas ya existen y se probaron (25-sep-2026): quedan vacías (`''` y `NULL`) en las 38 cotizaciones existentes, sin tocar el flujo de GNP, que sigue escribiendo sólo sus columnas de siempre. Falta decidir cuándo y quién las llena — no es parte de esta Fase 1.
 
 ### 10. Configuración separada por compañía `[CONFIRMADO]`
 
@@ -182,15 +184,26 @@ Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` p
 
 ## 👥 Aprobación
 
-- Producto / Negocio: ⏳
-- TI / Arquitectura: ⏳
+- Producto / Negocio: ✅ (Albert, 2026-09-25)
+- TI / Arquitectura: ✅ (Albert, 2026-09-25)
 
 ## Pendiente `[PENDIENTE]`
 
-- Revisión de Albert.
 - Validar el contrato (punto 3) contra el manual técnico de HDI en cuanto llegue.
-- Aplicar las migraciones de los puntos 5, 8 y 9 y comprobar GNP de punta a punta.
-- Anotar en [ADR-003](./ADR-003-modelo-de-datos.md) la convención de prefijos del punto 6.
+- Decidir cuándo y quién llena `clave_vehiculo` y `submarca_id` (punto 9) — las columnas ya existen, nadie las usa todavía.
+- Construir de verdad los clientes de HDI, Qualitas y Zurich — hoy sólo tienen carpeta y README.
+
+### Hecho en la Fase 1 (25-sep-2026)
+
+- Migraciones de los puntos 5, 8 y 9 aplicadas y comprobadas contra una copia de `cotizador_gnp.sqlite`: 38 cotizaciones antes y después, las 38 marcadas `GNP`, corrida repetida sin errores.
+- `v_cotizaciones` recreada con la columna `aseguradora` para poder filtrar el historial por compañía.
+- `app/plataforma/` (contrato, registro, resultado común, candado de emisión) y el adaptador delgado `AseguradoraGnp` — código nuevo, sin ninguna pantalla de GNP conectada a él todavía.
+- Menú (admin) y filtro de historial armados desde `sys_aseguradoras`.
+- Regresión de GNP sin llamadas: `php -l` a los 55 archivos de `app/` y `public/` sin errores; pantallas cargadas por HTTP (login, cotizar, historial con y sin filtro, plantillas, juega y compara, usuarios) contra una copia de la base, con un usuario admin y uno no-admin — sin errores fatales, permisos de admin respetados (403 para no-admin en `usuarios`). No se hizo ninguna llamada a GNP.
+- Convención de prefijos del punto 6 anotada en [ADR-003](./ADR-003-modelo-de-datos.md).
+- Regresión con 2 llamadas reales de control contra producción (autorizadas por Manu): cot #28 → #41 (Cotizador, 3 paquetes) y cot #39 → #42 (Juega y Compara, plantilla 76). Migraciones aplicadas y comprobadas contra la base real: 38 cotizaciones antes, 40 después (38 + las 2 de control), las 40 marcadas `GNP` en `cot_cotizaciones`/`cot_resultados`/`cot_documentos`/`sys_llamadas`. Petición XML idéntica byte a byte contra el original en ambos pares (sólo difieren vigencia y el nombre de prueba del contratante). Evidencia y Comparativo Multi-Plan (PDF/Excel) generados sin problema para las 2 cotizaciones nuevas. Precio con variación (+8.6% a +10.3% en el par del Cotizador, 0% en el de Juega y Compara): atribuido a tarifa de GNP, ver [ADR-005 punto 12](../03_Decisiones/ADR-005-reglas-verificadas-gnp.md).
+
+**Nota para futuras regresiones de control:** al repetir una cotización para comparar, copiar también el **nombre del contratante** tal cual quedó guardado (`cot_cotizaciones.contratante`), no sólo vehículo/CP/edad/sexo/tipo de persona/paquetes. No tarifica, pero repetirlo exacto evita que el diff del XML de petición traiga ruido que hay que explicar aparte cada vez.
 
 ## Referencias
 

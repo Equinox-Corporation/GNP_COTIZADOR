@@ -278,6 +278,17 @@ CREATE INDEX IF NOT EXISTS ix_doc_cot ON cot_documentos (cotizacion_id);
 -- SISTEMA
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- Qué aseguradoras existen y en qué estado (ADR-010 punto 2). El menú se
+-- arma a partir de esta tabla, no con código fijo.
+-- PREPARADA | EN_INTEGRACION | OPERATIVA | SUSPENDIDA
+CREATE TABLE IF NOT EXISTS sys_aseguradoras (
+    clave      TEXT    PRIMARY KEY,   -- GNP | HDI | QUALITAS | ZURICH
+    nombre     TEXT    NOT NULL,
+    estado     TEXT    NOT NULL DEFAULT 'PREPARADA',
+    orden      INTEGER NOT NULL DEFAULT 0,
+    creada_en  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS sys_usuarios (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     usuario    TEXT    NOT NULL UNIQUE,
@@ -318,7 +329,7 @@ CREATE INDEX IF NOT EXISTS ix_llam_fecha ON sys_llamadas (ejecutado_en DESC);
 CREATE VIEW IF NOT EXISTS v_cotizaciones AS
 SELECT  c.id, c.folio, c.estado, c.creada_en, c.vence_en,
         c.descripcion_veh, c.modelo, c.tipo_persona, c.procedencia,
-        c.contratante, c.conductor_edad, c.conductor_cp,
+        c.contratante, c.conductor_edad, c.conductor_cp, c.aseguradora,
         (SELECT COUNT(*) FROM cot_resultados r WHERE r.cotizacion_id = c.id)        AS paquetes,
         (SELECT MIN(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS desde,
         (SELECT MAX(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS hasta,
@@ -454,6 +465,50 @@ SQL);
             );
             $pdo->exec('PRAGMA foreign_keys = ON');
         }
+
+        // 25-sep-2026: plataforma de cotizadores por aseguradora (ADR-010
+        // puntos 5 y 9). Todo lo existente queda marcado como GNP sin que
+        // nadie lo toque; el flujo actual de GNP no cambia.
+        foreach (['cot_cotizaciones', 'cot_resultados', 'cot_documentos', 'sys_llamadas'] as $tabla) {
+            if (!in_array('aseguradora', $columnas($tabla), true)) {
+                $pdo->exec("ALTER TABLE {$tabla} ADD COLUMN aseguradora TEXT NOT NULL DEFAULT 'GNP'");
+            }
+        }
+
+        // 25-sep-2026: clave del vehículo según la compañía (obligatoria para
+        // las nuevas; GNP sigue usando armadora/carroceria/version/clavemarca)
+        // y puente al catálogo maestro (ADR-004), que puede quedar vacío.
+        $hay = $columnas('cot_cotizaciones');
+        if (!in_array('clave_vehiculo', $hay, true)) {
+            $pdo->exec("ALTER TABLE cot_cotizaciones ADD COLUMN clave_vehiculo TEXT NOT NULL DEFAULT ''");
+        }
+        if (!in_array('submarca_id', $hay, true)) {
+            $pdo->exec('ALTER TABLE cot_cotizaciones ADD COLUMN submarca_id TEXT NULL');
+        }
+        if (!in_array('datos_aseguradora_json', $hay, true)) {
+            $pdo->exec("ALTER TABLE cot_cotizaciones ADD COLUMN datos_aseguradora_json TEXT NOT NULL DEFAULT '{}'");
+        }
+
+        // v_cotizaciones necesita la columna aseguradora para poder filtrar el
+        // historial por compañía (ADR-010 punto 6 de la Fase 1). CREATE VIEW
+        // IF NOT EXISTS de arriba no toca una vista que ya existe, así que en
+        // una base con historial previo hay que recrearla a mano.
+        if (!in_array('aseguradora', $columnas('v_cotizaciones'), true)) {
+            $pdo->exec('DROP VIEW IF EXISTS v_cotizaciones');
+            $pdo->exec(
+                "CREATE VIEW v_cotizaciones AS
+                 SELECT  c.id, c.folio, c.estado, c.creada_en, c.vence_en,
+                         c.descripcion_veh, c.modelo, c.tipo_persona, c.procedencia,
+                         c.contratante, c.conductor_edad, c.conductor_cp, c.aseguradora,
+                         (SELECT COUNT(*) FROM cot_resultados r WHERE r.cotizacion_id = c.id)        AS paquetes,
+                         (SELECT MIN(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS desde,
+                         (SELECT MAX(r.total_pagar) FROM cot_resultados r WHERE r.cotizacion_id = c.id) AS hasta,
+                         (SELECT COUNT(*) FROM cot_documentos d WHERE d.cotizacion_id = c.id)        AS pdfs,
+                         CASE WHEN c.vence_en IS NULL THEN NULL
+                              WHEN date(c.vence_en) < date('now','localtime') THEN 1 ELSE 0 END      AS vencida
+                 FROM    cot_cotizaciones c"
+            );
+        }
     }
 
     /** Datos que el sistema necesita para arrancar y no vienen del API. */
@@ -545,6 +600,21 @@ SQL);
             "UPDATE cat_coberturas SET nombre = 'Auto Sustituto Pérdida Total'
               WHERE grupo='AUTO' AND paquete='AUTO ELITE' AND cve_cobertura='0000001414'"
         );
+
+        // ADR-010 punto 2: GNP ya cotiza en producción; las demás sólo tienen
+        // la carpeta, sin conexión todavía.
+        $sa = $pdo->prepare(
+            'INSERT INTO sys_aseguradoras (clave, nombre, estado, orden)
+             VALUES (?,?,?,?) ON CONFLICT (clave) DO NOTHING'
+        );
+        foreach ([
+            ['GNP', 'GNP', 'OPERATIVA', 1],
+            ['HDI', 'HDI', 'PREPARADA', 2],
+            ['QUALITAS', 'Qualitas', 'PREPARADA', 3],
+            ['ZURICH', 'Zurich', 'PREPARADA', 4],
+        ] as $a) {
+            $sa->execute($a);
+        }
 
         // Sólo Residentes está verificado contra el servicio (cotización 02.1 del 18-ago).
         // Los demás sub_ramo hay que confirmarlos con GNP antes de ofrecerlos.
