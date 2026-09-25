@@ -34,6 +34,8 @@ Prefijo que dice de un vistazo qué es cada cosa:
 - **`cot_*`** — cotizaciones y sus resultados
 - **`sys_*`** — usuarios y bitácora de llamadas
 
+> _(CC, 2026-09-25)_ — **Convención de prefijos para la plataforma de cotizadores por aseguradora** ([ADR-009](../01_Generales/ADR-009-plataforma-de-cotizadores-por-aseguradora.md) / [ADR-010](./ADR-010-contrato-comun-de-modulos-por-aseguradora.md) punto 6): el prefijo `cat_` sin sufijo de compañía significa **GNP, por historia** — las tablas existentes no se renombran. Las aseguradoras nuevas usan su propio prefijo: `cat_hdi_*`, `cat_qua_*`, `cat_zur_*`. `cot_*` y `sys_*` no se dividen por compañía: ya llevan la columna `aseguradora TEXT NOT NULL DEFAULT 'GNP'` (agregada el 25-sep-2026), porque una cotización siempre es de una sola compañía y no hace falta una tabla aparte para distinguirlas.
+
 ```
 cat_catalogos              55,697   catálogos planos del API (periodicidad, uso, ocupación…)
 cat_vehiculos              48,155   el catálogo de vehículos de GNP con su CLAVEMARCA
@@ -129,7 +131,6 @@ El corazón del asunto es esta cadena:
 |---|---|
 | **`cat_comercial.db` no tiene respaldo automático** | Sólo respaldos manuales con sufijo de fecha. Es el archivo irrecuperable del proyecto |
 | **Seis respaldos manuales conviviendo en `app/core/`** | ~13 MB de `.bak_pre_*` sin política de retención ni de limpieza |
-| **`app/core/*.db` no está en `.gitignore`** | Sólo `datos/*.sqlite` lo está. El catálogo maestro y sus respaldos pueden acabar commiteados |
 | **55.5% del catálogo maestro sin homologar** | 4,316 submarcas que hoy no se pueden cotizar en GNP |
 | **`cat_comercial_diseño.md` está desactualizado** | Dice 110 marcas, 7,941 submarcas y mapeo en NULL. Es lo primero que leería alguien nuevo |
 | **`cat_plantillas`/`cat_plantilla_coberturas` viven en `cotizador_gnp.sqlite`, que "se puede regenerar" — pero ellas no** | Son contenido de negocio, no espejo de GNP. Mitigado por tener script de reproducción (`app/scripts/cargar_plantillas_equinox.php`), a diferencia de `cat_comercial.db` — ver nota del punto 2 |
@@ -155,7 +156,6 @@ El corazón del asunto es esta cadena:
 ## Pendiente `[PENDIENTE]`
 
 - Conectar `homologacion_gnp` a `CatalogoServicio` y `CotizacionServicio`.
-- Agregar `app/core/*.db` y `app/core/*.bak_*` al `.gitignore`, y decidir qué hacer con lo que ya esté en el historial de git.
 - Política de respaldo y retención de `cat_comercial.db`.
 - Actualizar `cat_comercial_diseño.md` con los números reales y las rutas correctas.
 - Revisar los 45 casos de confianza 80 y los 18 pares de `gemelas_por_confirmar.csv`.
