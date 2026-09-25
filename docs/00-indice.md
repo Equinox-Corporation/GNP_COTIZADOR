@@ -66,7 +66,7 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 ---
 
-- **ADR-010 — Contrato común de los módulos por aseguradora:** carpeta por compañía, registro `sys_aseguradoras` con estados (PREPARADA → EN_INTEGRACION → OPERATIVA), contrato de cuatro botones, candado de emisión en cada cliente, columna `aseguradora` en las tablas comunes, catálogos con prefijo por compañía y resultado en formato común. **Propuesto**, pendiente de revisión. Detalle en [02_Arquitectura/ADR-010](./02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md).
+- **ADR-010 — Contrato común de los módulos por aseguradora:** carpeta por compañía, registro `sys_aseguradoras` con estados (PREPARADA → EN_INTEGRACION → OPERATIVA), contrato de cuatro botones, candado de emisión en cada cliente, columna `aseguradora` en las tablas comunes, catálogos con prefijo por compañía y resultado en formato común. **Confirmado (Albert, 2026-09-25).** Detalle en [02_Arquitectura/ADR-010](./02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md).
 
 ## Estado del proyecto — 2026-09-10
 

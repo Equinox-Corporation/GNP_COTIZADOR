@@ -2,7 +2,7 @@
 
 ## 📌 Estado
 
-**Propuesto** _(CC, 2026-09-24)_. Pendiente de la revisión de Albert. Producto/Negocio ⏳ · TI/Arquitectura ⏳.
+**Confirmado (Albert, 2026-09-25)**. Producto/Negocio ✅ · TI/Arquitectura ✅.
 
 Implementa [ADR-009](../01_Generales/ADR-009-plataforma-de-cotizadores-por-aseguradora.md): la plataforma tiene un módulo por aseguradora. Aquí se fija **qué tiene que cumplir cada módulo** para que convivan sin estorbarse y para que el MultiCotizador futuro sea posible. Se apoya en [ADR-002](./ADR-002-stack-y-estructura.md) (stack) y [ADR-003](./ADR-003-modelo-de-datos.md) (datos).
 
@@ -182,12 +182,11 @@ Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` p
 
 ## 👥 Aprobación
 
-- Producto / Negocio: ⏳
-- TI / Arquitectura: ⏳
+- Producto / Negocio: ✅ (Albert, 2026-09-25)
+- TI / Arquitectura: ✅ (Albert, 2026-09-25)
 
 ## Pendiente `[PENDIENTE]`
 
-- Revisión de Albert.
 - Validar el contrato (punto 3) contra el manual técnico de HDI en cuanto llegue.
 - Aplicar las migraciones de los puntos 5, 8 y 9 y comprobar GNP de punta a punta.
 - Anotar en [ADR-003](./ADR-003-modelo-de-datos.md) la convención de prefijos del punto 6.
