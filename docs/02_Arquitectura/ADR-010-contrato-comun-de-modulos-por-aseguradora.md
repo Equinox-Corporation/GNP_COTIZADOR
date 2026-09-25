@@ -71,7 +71,7 @@ Por qué importa: el resto de la plataforma (historial, evidencia, mensajes al u
 
 ### 4. Candado de emisión en cada cliente `[CONFIRMADO]`
 
-Cada cliente declara su lista de rutas prohibidas (emisión, cobro, cancelación), como ya hace `GnpClient` con `PROHIBIDAS`, y la valida antes de cada llamada. Es condición para que un módulo pase a `EN_INTEGRACION`. Se apoya en ADR-009, punto 5.
+Cada cliente declara su lista de rutas prohibidas (emisión, cobro, cancelación) y la valida antes de cada llamada. `GnpClient` sigue con su propia lista `PROHIBIDAS` sin tocarse; los clientes nuevos reutilizan `app/plataforma/CandadoEmision.php` (`use CandadoEmision;` + `validarRuta()`), para no reinventar el candado en cada compañía. Es condición para que un módulo pase a `EN_INTEGRACION`. Se apoya en ADR-009, punto 5.
 
 ### 5. Las tablas comunes llevan la columna `aseguradora` `[PENDIENTE]`
 
