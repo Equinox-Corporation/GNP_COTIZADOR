@@ -8,3 +8,10 @@ app/core/*.bak_*
 datos/*.xlsx
 datos/*.csv
 datos/*.zip
+datos/*.bak_*
+*.sqlite.bak_*
+
+# Excepciones explícitas: CSV que son insumo real del proyecto, no basura de trabajo.
+# Si agregas un CSV nuevo como insumo (p.ej. tarifa HDI en Etapa 3), súmalo aquí también.
+!datos/coberturas_gnp.csv
+!datos/paquetes_gnp_matriz.csv
