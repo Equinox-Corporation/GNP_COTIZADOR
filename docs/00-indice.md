@@ -68,16 +68,19 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 
 - **ADR-010 — Contrato común de los módulos por aseguradora:** carpeta por compañía, registro `sys_aseguradoras` con estados (PREPARADA → EN_INTEGRACION → OPERATIVA), contrato de cuatro botones, candado de emisión en cada cliente, columna `aseguradora` en las tablas comunes, catálogos con prefijo por compañía y resultado en formato común. **Confirmado (Albert, 2026-09-25).** Detalle en [02_Arquitectura/ADR-010](./02_Arquitectura/ADR-010-contrato-comun-de-modulos-por-aseguradora.md).
 
-## Estado del proyecto — 2026-09-10
+## Estado del proyecto — 2026-09-25
 
 | | |
 |---|---|
-| Cotizaciones hechas contra producción | 36 (60 tarificaciones) |
+| Cotizaciones hechas contra producción | 40 (65 tarificaciones) |
 | Catálogo GNP descargado | 48,155 vehículos · 392 paquetes · 167 coberturas |
 | Catálogo maestro comercial | 107 marcas · 7,777 submarcas |
 | Homologadas con GNP | 3,461 (44.5%) |
 | Procedencias verificadas | 1 de 7 (sólo Residentes, `01`) |
-| Llamadas registradas en bitácora | 114 |
+| Llamadas registradas en bitácora | 118 |
+| Aseguradoras en la plataforma | GNP `OPERATIVA` · HDI, Qualitas, Zurich `PREPARADA` (sólo carpeta, sin cliente) |
+
+Corte anterior (2026-09-10): 36 cotizaciones, 114 llamadas — antes de la Fase 1 de la plataforma de aseguradoras (ver actualización de abajo).
 
 ---
 
@@ -87,9 +90,9 @@ _(Beto, 2026-09-10)_ — Hallazgos de la revisión del repositorio. No son decis
 
 | # | Pendiente | Riesgo |
 |---|---|---|
-| 1 | **`.gitignore` no cubre `app/core/*.db`.** `cat_comercial.db` (2.7 MB) y sus **seis respaldos** (~13 MB) están dentro del árbol y no ignorados. Sólo `datos/*.sqlite` lo está | 🔴 Alto — infla el repositorio de forma permanente; git no olvida un binario ya commiteado |
-| 2 | **`datos/*.xlsx`, `*.csv` y `*.zip` tampoco están ignorados** — hay ~7 MB entre el catálogo en Excel, los pendientes de homologación y el ZIP de entrega | 🔴 Alto — mismo problema |
-| 3 | **Trabajo sin subir.** El último push fue el 2026-08-26; hay objetos de git posteriores sin llegar a `main` | 🟡 Medio — la homologación completa vive sólo en este equipo |
+| 1 | ~~`.gitignore` no cubre `app/core/*.db`~~ — **resuelto 2026-09-24**: se agregaron `app/core/*.db`, `app/core/*.bak_*`, `datos/*.bak_*` y `*.sqlite.bak_*` al `.gitignore`. Ninguno de los `.db`/`.bak_*` existentes estaba commiteado, así que no hizo falta tocar el historial de git | ✅ Cerrado |
+| 2 | ~~`datos/*.xlsx`, `*.csv` y `*.zip` tampoco están ignorados~~ — **resuelto 2026-09-24**: agregados al `.gitignore`, con excepción explícita para los CSV que sí son insumo real (`datos/coberturas_gnp.csv`, `datos/paquetes_gnp_matriz.csv`) — ver `.gitignore` | ✅ Cerrado |
+| 3 | ~~Trabajo sin subir desde el 2026-08-26~~ — **resuelto 2026-09-24**: commiteado y subido a `main` | ✅ Cerrado |
 | 4 | **`README.md` desactualizado.** Habla de 47,542 versiones (hoy 48,155) y no menciona `cat_comercial.db` ni la homologación | 🟡 Medio |
 | 5 | **`cat_comercial_diseño.md` desactualizado.** Dice 110 marcas y 7,941 submarcas con `IDmarca_gnp` en NULL; la realidad es 107, 7,777 y 3,461 homologadas. Sus rutas apuntan a `data/`, que no existe (es `app/core/`) | 🟡 Medio — es el documento que alguien nuevo leería primero |
 | 6 | **`.env.example` trae el usuario real de GNP** (`AESPIN870946`) y un correo interno, en un repositorio ya publicado | 🟢 Bajo — no es la contraseña, pero conviene dejarlo como marcador |
@@ -101,4 +104,6 @@ _(Beto, 2026-09-10)_ — Hallazgos de la revisión del repositorio. No son decis
 
 Actualización 2026-09-24 _(CC)_: se agregan ADR-009 (plataforma de cotizadores por aseguradora, confirmado) y ADR-010 (contrato común de módulos, propuesto), la carpeta `aseguradoras/` con el kit mínimo y el estado de HDI, Qualitas y Zurich, y la nota de reemplazo parcial en ADR-001.
 
-Actualización 2026-09-25 _(CC)_: Albert confirma ADR-010. Arranca la Fase 1 en la rama `feature/plataforma-aseguradoras`: migraciones (columna `aseguradora`, `clave_vehiculo`, `submarca_id`, `datos_aseguradora_json`, tabla `sys_aseguradoras`), `app/plataforma/` (contrato, registro, resultado común, candado de emisión reutilizable) con el adaptador delgado `AseguradoraGnp`, carpetas `Hdi/`/`Qualitas/`/`Zurich/` reservadas, menú y filtro de historial por aseguradora, y convención de prefijos anotada en ADR-003. Todo probado contra una copia de la base y por HTTP contra una copia también, sin ninguna llamada a GNP. Nada de esto conecta con el flujo real de GNP todavía — es aditivo.
+Actualización 2026-09-25 _(CC)_: **Fase 1 de ADR-010 cerrada y fusionada a `main`.** Albert confirma ADR-010, arranca la Fase 1 en la rama `feature/plataforma-aseguradoras`: migraciones (columna `aseguradora`, `clave_vehiculo`, `submarca_id`, `datos_aseguradora_json`, tabla `sys_aseguradoras`), `app/plataforma/` (contrato, registro, resultado común, candado de emisión reutilizable) con el adaptador delgado `AseguradoraGnp`, carpetas `Hdi/`/`Qualitas/`/`Zurich/` reservadas (sólo carpeta y README, sin cliente — estado `PREPARADA`), menú y filtro de historial por aseguradora, y convención de prefijos anotada en ADR-003.
+
+Regresión completa antes del merge: `php -l` a todo, pantallas cargadas por HTTP sin llamadas, y 2 cotizaciones reales de control autorizadas por Manu contra producción (cot #28→#41 Cotizador, #39→#42 Juega y Compara) — migraciones aplicadas a la base real sin pérdida de datos (38→40 cotizaciones, las 40 `GNP`), petición XML idéntica byte a byte en ambos pares, evidencia y Comparativo Multi-Plan generados igual que antes. La variación de precio detectada (+8.6% a +10.3% en el par del Cotizador) se descartó como bug de código (mismo XML) y se cerró como tarifa de GNP — decisión de negocio de Albert, ver [ADR-005 punto 12](./03_Decisiones/ADR-005-reglas-verificadas-gnp.md). GNP sigue siendo la única aseguradora `OPERATIVA`; nada del flujo real de GNP cambió de comportamiento.
