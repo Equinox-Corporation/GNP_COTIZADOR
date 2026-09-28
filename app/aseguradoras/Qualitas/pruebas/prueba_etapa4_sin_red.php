@@ -99,6 +99,10 @@ ok((int) $pdo->query('SELECT COUNT(*) FROM sys_descuentos_cambios')->fetchColumn
 echo "\n2. RangoDescuento\n";
 ok(RangoDescuento::resolver($pdo, 'QUALITAS', 'TODOS') === ['minimo' => 0, 'maximo' => 55, 'fila' => 'TODOS'], 'Qualitas TODOS → 0–55');
 ok(RangoDescuento::resolver($pdo, 'QUALITAS', 'CAMION')['maximo'] === 30 && RangoDescuento::resolver($pdo, 'QUALITAS', 'MOTO')['maximo'] === 20, 'Camiones 0–30, motos 0–20');
+// Para el DESCUENTO, pick-up va con autos (55), no con camiones (30) — aunque
+// para la COMISIÓN pick-up sí cuente como camión (Albert, 2026-09-28).
+$pickup = RangoDescuento::resolver($pdo, 'QUALITAS', 'PICKUP');
+ok($pickup['fila'] === 'PICKUP' && $pickup['minimo'] === 0 && $pickup['maximo'] === 55, 'Pick-up es tipo propio con tope 0–55 (el de autos), nunca el 30 de camiones', json_encode($pickup));
 $pdo->exec("DELETE FROM sys_descuentos WHERE aseguradora='QUALITAS' AND tipo_vehiculo='PICKUP'");
 ok(RangoDescuento::resolver($pdo, 'QUALITAS', 'PICKUP')['fila'] === 'TODOS', 'Sin fila del tipo → cae en TODOS');
 ok(RangoDescuento::resolver($pdo, 'HDI', 'AUTO') === ['minimo' => 0, 'maximo' => 0, 'fila' => null], 'Sin ninguna fila → 0–0, nunca "sin límite"');

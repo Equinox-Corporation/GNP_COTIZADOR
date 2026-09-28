@@ -159,6 +159,7 @@ PRIMA NETA − PRONTO PAGO (2%) + GASTOS EXP.  = SUBTOTAL   ;  SUBTOTAL × 16%  
 
 1. **Descuento capturado por el usuario.** La pantalla tiene un campo de porcentaje; lo que el usuario escribe es lo que se manda en `PorcentajeDescuento`.
    - **Rango mínimo y máximo configurable** por aseguradora y tipo de vehículo, en una tabla común de la plataforma (`sys_descuentos`) que el administrador edita desde pantalla. Sirve para cualquier compañía que reciba el descuento en la petición. Valores iniciales de Qualitas: mínimo 0; máximo 55 autos/pick-up, 30 camiones, 20 motos.
+   - **La agrupación del descuento no es la de la comisión** (Albert, 2026-09-28). Para el **tope de descuento**, el formulario del negocio pone pick-up con **autos** (55). Para la **comisión**, pick-up cuenta como **camión** (8.8; "Reglas verificadas", punto 7). En `sys_descuentos`, pick-up es un tipo propio (`PICKUP`) con 0–55, nunca 0–30. `prueba_etapa4_sin_red.php` falla si la semilla deja a pick-up con el tope de camiones.
    - El usuario no puede salir del rango: se valida en pantalla y en servidor. Por qué: Qualitas rechaza fuera de rango (error 7) y conviene que el usuario lo vea antes de gastar una llamada.
    - Mientras no se sepa qué dato del catálogo dice si es auto, camión o moto `[PENDIENTE]`, se usa la fila "TODOS" de la aseguradora (0–55) y el rechazo de Qualitas cae en `DATOS` con su mensaje.
    - GNP no recibe descuento en la petición: no se le conecta.
