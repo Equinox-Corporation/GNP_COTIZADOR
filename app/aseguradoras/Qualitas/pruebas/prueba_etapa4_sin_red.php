@@ -252,12 +252,25 @@ if (!function_exists('h')) {
     function h(mixed $v): string { return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
     function dinero(?float $n): string { return $n === null ? '—' : '$' . number_format($n, 2); }
     function url(string $r, array $p = []): string { return '/?' . http_build_query(array_merge(['r' => $r], $p)); }
+    /**
+     * Copia exacta de cómo vista() de public/index.php le pasa el contexto a la
+     * vista: parámetro llamado $datos + extract(EXTR_SKIP). Así se prueba la
+     * vista como la ve el navegador (una clave `datos` se perdería aquí igual).
+     */
+    function vistaComoIndex(string $nombre, array $datos = []): string
+    {
+        extract($datos, EXTR_SKIP);
+        ob_start();
+        require RUTA_APP . '/vistas/' . $nombre . '.php';
+        return (string) ob_get_clean();
+    }
+    /** El mismo contexto que arma la ruta qualitas/resultado. */
+    function pantallaResultado(int $cotId): string
+    {
+        return vistaComoIndex('qualitas_resultado', QualitasServicio::contextoResultado($cotId) + ['aviso' => '', 'puedeCotizar' => false]);
+    }
 }
-$vista = (static function (array $cot, array $datos, array $resultados, bool $vencida, string $aviso, bool $puedeCotizar): string {
-    ob_start();
-    require RUTA_APP . '/vistas/qualitas_resultado.php';
-    return (string) ob_get_clean();
-})($cotErr, json_decode((string) $cotErr['datos_aseguradora_json'], true) ?: [], [], false, '', true);
+$vista = pantallaResultado((int) $cotErr['id']);
 ok(str_contains($vista, h($textoQualitas)), 'Pantalla: muestra el mensaje de Qualitas tal cual');
 ok(!str_contains($vista, 'class="precio"') && !str_contains($vista, '750'), 'Pantalla: ningún precio, ni el 750');
 $respuesta = $real;
@@ -298,12 +311,7 @@ foreach ($casos as $id => $caso) {
     ok($crudaGl === '3000000', "id {$id}: la suma cruda de Gastos Legales (3000000) queda en conceptos_json");
 
     // Pantalla
-    $filaVista = $res + ['conceptos' => $conc, 'coberturas' => $cobs];
-    $html = (static function (array $cot, array $datos, array $resultados, bool $vencida, string $aviso, bool $puedeCotizar): string {
-        ob_start();
-        require RUTA_APP . '/vistas/qualitas_resultado.php';
-        return (string) ob_get_clean();
-    })($cotP, json_decode((string) $cotP['datos_aseguradora_json'], true) ?: [], [$filaVista], false, '', false);
+    $html = pantallaResultado((int) $cotP['id']);
     $enPantalla = true;
     foreach ($amparadas as $n) {
         $enPantalla = $enPantalla && str_contains($html, '<tr><th>' . h($porNo[$n]['nombre']) . '</th><td>Amparada</td>');
@@ -322,9 +330,93 @@ foreach ($casos as $id => $caso) {
         $enPdf = $enPdf && $i !== false && ($tx[$i + 1] ?? '') === 'Amparada';
     }
     ok($enPdf && !in_array('$20,000', $tx, true) && !in_array('$15,000', $tx, true), "id {$id}: PDF — misma regla que la pantalla");
-    ok(in_array('$' . number_format((float) $pt[1], 2), $tx, true), "id {$id}: PDF — total " . number_format((float) $pt[1], 2));
+    ok(in_array(number_format((float) $pt[1], 2), $tx, true), "id {$id}: PDF — total " . number_format((float) $pt[1], 2));
 }
 ok(AseguradoraQualitas::textoSuma('0', 'MONTO') === '—' && AseguradoraQualitas::textoSuma('', 'MONTO') === '—', 'Suma 0 en una cobertura no marcada: "—", no "Amparada"');
+
+// ─── 9. Caso real 1219401257: pantalla y PDF (ids 136–139) ─────────────
+echo "\n9. Cotización 1219401257 (Captiva, pantalla de Albert, ids 136–139): pantalla y PDF\n";
+$porForma = [];
+foreach (['C' => 136, 'S' => 137, 'T' => 138, 'M' => 139] as $fp => $idLl) {
+    $porForma[$fp] = file_get_contents(glob($evid . "*llamada-{$idLl}_pantalla_captiva_{$fp}_respuesta.xml")[0]);
+}
+// Cada petición recibe la respuesta real de su forma de pago.
+$respuesta = '';
+$transporteForma = static function (string $url, string $cuerpo) use (&$envios, $porForma): array {
+    $envios[] = $cuerpo;
+    preg_match('#&lt;FormaPago&gt;([CSTM])&lt;/FormaPago&gt;#', $cuerpo, $m);
+    return ['http' => 200, 'cuerpo' => $porForma[$m[1] ?? 'C'], 'errno' => 0, 'error' => ''];
+};
+$moduloForma = new AseguradoraQualitas(new QualitasClient($config, $transporteForma), $pdo);
+$captura = ['clave_vehiculo' => '21191', 'modelo' => '2026', 'conductor_cp' => '11590', 'estado' => '9', 'porcentaje_descuento' => '55', 'paquetes' => [$ids['Amplia']]];
+
+$s = QualitasServicio::cotizar($captura, 1, $moduloForma);
+$cot9 = (int) $s['cotizacion_id'];
+$res9 = (int) $pdo->query("SELECT id FROM cot_resultados WHERE cotizacion_id = {$cot9}")->fetchColumn();
+ok($pdo->query("SELECT folio FROM cot_cotizaciones WHERE id = {$cot9}")->fetchColumn() === '1219401257', 'Folio 1219401257, como en la pantalla de Albert');
+
+// Sólo contado: el PDF queda como antes (sin tabla de formas de pago).
+$pdfUnico = (static function () use ($moduloForma, $cot9): string {
+    $ctx = QualitasServicio::contextoResultado($cot9);
+    return $moduloForma->imprimir($ctx['cot'] + ['datos_aseguradora' => $ctx['datosAseg']], $ctx['resultados'][0])['pdf'];
+})();
+ok(!in_array('Formas de pago', $textosPdf($pdfUnico), true), 'Sólo contado: el PDF no trae tabla de formas de pago');
+
+foreach (['S', 'T', 'M'] as $fp) {
+    QualitasServicio::otraFormaDePago($res9, $fp, $moduloForma);
+}
+$ctx9 = QualitasServicio::contextoResultado($cot9);
+$venceEn = (string) $ctx9['cot']['vence_en'];
+
+// Pantalla, por el mismo camino que el navegador.
+$html = pantallaResultado($cot9);
+ok(str_contains($html, '<span>Descuento aplicado</span><strong>55%</strong>'), 'Pantalla: "Descuento aplicado" dice 55% (antes "—")');
+ok(str_contains($html, '<span>Código postal · estado</span><strong>11590 · Ciudad de México</strong>'), 'Pantalla: "11590 · Ciudad de México" (antes "11590 · —")');
+preg_match_all('#<dt>([^<]+)</dt><dd>([^<]+)</dd>#', $html, $dd, PREG_SET_ORDER);
+$importesPantalla = array_map(static fn ($x) => [$x[1], $x[2]], $dd);
+$esperados = [['PRIMA NETA', '8,440.28'], ['TASA FIN. P.F.', '-168.81'], ['GTOS.EXPED.POL.', '750.00'], ['SUBTOTAL', '9,021.47'], ['I.V.A.', '1,443.44'], ['IMPORTE TOTAL', '10,464.91']];
+ok($importesPantalla === $esperados, 'Pantalla: importes con nombres, orden y formato de Qualitas (SUBTOTAL 9,021.47)', json_encode($importesPantalla, JSON_UNESCAPED_UNICODE));
+ok(str_contains($html, '<p class="precio">10,464.91</p>') && !str_contains($html, '$10,464.91'), 'Pantalla: montos sin signo de pesos, como Qualitas');
+foreach ([
+    ['Contado', '10,464.91', '10,464.91', '—', '1'],
+    ['Semestral', '10,895.71', '5,882.85', '5,012.86', '2'],
+    ['Trimestral', '11,130.68', '3,435.17', '2,565.17', '4'],
+    ['Mensual', '11,287.33', '1,738.01', '868.12', '12'],
+] as [$nom, $tot, $pri, $sig, $pag]) {
+    ok(str_contains($html, "<td>{$nom}</td>\n              <td>{$tot}</td>\n              <td>{$pri}</td>\n              <td>{$sig}</td>\n              <td>{$pag}</td>"), "Pantalla: {$nom} {$tot} · primer pago {$pri} · siguientes {$sig} · {$pag} pagos");
+}
+ok(str_contains($html, 'pendiente de confirmar'), 'Pantalla (sólo administradores): conserva la advertencia de la vigencia');
+
+// PDF propio, con el mismo contexto que la ruta qualitas/pdf.
+$pdf9 = $moduloForma->imprimir($ctx9['cot'] + ['datos_aseguradora' => $ctx9['datosAseg']], $ctx9['resultados'][0])['pdf'];
+$tx = $textosPdf($pdf9);
+$sig = static function (array $tx, string $etq, int $n = 1): array {
+    $i = array_search($etq, $tx, true);
+    return $i === false ? [] : array_slice($tx, $i + 1, $n);
+};
+ok($sig($tx, 'Descuento aplicado') === ['55%'], 'PDF: Descuento aplicado 55%');
+ok($sig($tx, 'Código postal · estado') === ['11590 · Ciudad de México'], 'PDF: el estado va junto al código postal');
+ok($sig($tx, 'Vigencia de la cotización') === ["7 días (hasta {$venceEn})"], "PDF: \"Vigencia de la cotización: 7 días (hasta {$venceEn})\"");
+ok(array_filter($tx, static fn ($t) => str_contains($t, 'pendiente') || str_contains($t, 'sale de los PDF')) === [], 'PDF: sin la nota interna de la vigencia');
+ok($sig($tx, 'Importes', 12) === array_merge(...$esperados), 'PDF: bloque de importes idéntico al de Qualitas, igual que la pantalla', json_encode($sig($tx, 'Importes', 12), JSON_UNESCAPED_UNICODE));
+ok($sig($tx, 'Formas de pago', 25) === [
+    'Forma', 'Total', 'Primer pago', 'Pagos siguientes', 'Pagos',
+    'Contado', '10,464.91', '10,464.91', '—', '1',
+    'Semestral', '10,895.71', '5,882.85', '5,012.86', '2',
+    'Trimestral', '11,130.68', '3,435.17', '2,565.17', '4',
+    'Mensual', '11,287.33', '1,738.01', '868.12', '12',
+], 'PDF: tabla de formas de pago (forma, total, primer pago, siguientes, pagos)', json_encode($sig($tx, 'Formas de pago', 25), JSON_UNESCAPED_UNICODE));
+
+// La comisión NUNCA aparece en el PDF (documento para el cliente).
+$fugas = array_filter($tx, static fn ($t) => stripos($t, 'omisi') !== false || in_array($t, ['11%', '928.43', '464.21', '232.10', '77.36'], true)
+    || str_contains($t, '928.43') || str_contains($t, '464.21') || str_contains($t, '232.10') || str_contains($t, '77.36'));
+ok($fugas === [], 'PDF: ninguna comisión (ni la palabra, ni 11%, ni 928.43/464.21/232.10/77.36)', json_encode(array_values($fugas), JSON_UNESCAPED_UNICODE));
+ok(!str_contains($pdf9, 'omisi'), 'PDF: la palabra "comisión" no está en ningún lado del archivo');
+
+// SUBTOTAL sólo si cuadra al centavo con lo que devolvió Qualitas.
+$sinCuadrar = array_column(AseguradoraQualitas::importes(8440.28, -168.81, 750.0, 1443.44, 10464.90), 0);
+ok(!in_array('SUBTOTAL', $sinCuadrar, true) && in_array('IMPORTE TOTAL', $sinCuadrar, true), 'Si SUBTOTAL + I.V.A. no da el total al centavo, SUBTOTAL no se muestra');
+$respuesta = $real;
 ok(AseguradoraQualitas::textoSuma('3000000', 'AMPARADA') === 'Amparada' && AseguradoraQualitas::textoSuma('468000', 'MONTO') === '$468,000', 'textoSuma(): Amparada / monto');
 $respuesta = $real;
 

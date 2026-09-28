@@ -330,6 +330,27 @@ mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva
 - **La Limitada** pasa por el módulo: paquete del catálogo con `<Paquete>3</Paquete>` y coberturas 3, 4, 5, 6, 7, 14 y 47, sin DM. No tiene PDF de referencia: sólo confirma que el paquete cotiza.
 - Todos dejan su fila en `sys_llamadas` y la petición y la respuesta crudas en `evidencia/`.
 
+### Pantalla de resultado y PDF propio: correcciones tras la prueba de Albert _(Claude, 2026-09-28)_
+
+Caso real: cotización **1219401257** (ids 136–139). Las pruebas que lo cubren, `prueba_etapa4_sin_red.php`, sección 9, usan esas respuestas reales como fixtures. **Fallan con el código anterior**: se corrieron contra una copia del commit previo y fallaron los puntos 4, 5, 8, 9 y 10.
+
+- **Descuento y estado en pantalla (puntos 4 y 5).** El dato sí se guardaba; la pantalla no lo recibía.
+  - La ruta pasaba la clave `datos` a `vista()`, cuya variable interna también se llama `$datos`, y `extract(EXTR_SKIP)` la saltaba.
+  - Ahora el contexto lo arma `QualitasServicio::contextoResultado()` con la clave `datosAseg`. Lo usan la ruta y las pruebas, que renderizan con una copia exacta de `vista()`.
+  - La pantalla dice "Descuento aplicado 55%" y "11590 · Ciudad de México". El PDF agrega el estado junto al CP.
+- **Importes idénticos a los PDF de Qualitas (puntos 6 y 8)**, en pantalla y en PDF, con una sola función, `AseguradoraQualitas::importes()`:
+  - Etiquetas en este orden: PRIMA NETA · TASA FIN. P.F. · GTOS.EXPED.POL. · SUBTOTAL · I.V.A. · IMPORTE TOTAL.
+  - TASA FIN. P.F. es `Recargo` tal como llega.
+  - Formato como Qualitas: sin signo de pesos y el negativo como -168.81.
+  - **SUBTOTAL** = prima neta + TASA FIN. P.F. + GTOS.EXPED.POL. Sólo se muestra si SUBTOTAL + I.V.A. da el IMPORTE TOTAL al centavo; si no, se omite. En la Captiva da **9,021.47, igual al PDF de Qualitas**.
+- **Vigencia (punto 9).** El PDF sólo dice "Vigencia de la cotización: 7 días (hasta AAAA-MM-DD)". La advertencia de que está por confirmar se queda en la pantalla, que sólo ven administradores.
+- **Formas de pago (punto 10).** Si hay otras cotizadas, el PDF agrega la tabla forma · total · primer pago · pagos siguientes · pagos, sin comisión; con sólo contado queda como antes. La pantalla usa la misma función (`formasDePago()`) y además muestra la comisión.
+- **Regla: la comisión NUNCA aparece en el PDF** (Albert, 2026-09-28). El PDF es un documento para el cliente; la comisión sólo se ve en la pantalla, que es para administradores.
+  - Una prueba falla si el PDF trae la palabra "comisión", el porcentaje o cualquiera de los importes (928.43, 464.21, 232.10, 77.36).
+  - Se comprobó metiendo la comisión al PDF a propósito: la prueba la detectó.
+- **Historial: el descuento no se muestra `[PENDIENTE: decisión]`.** Mostrarlo exige tocar `app/vistas/historial.php`, que es una vista de GNP, y la regla 3 lo prohíbe sin plantearlo antes.
+- Carga HTTP sobre una copia verificada con `verificar_copia_sin_red.php`: pantallas de GNP, Qualitas y descuentos con admin y no-admin, sin errores; los permisos no cambiaron.
+
 ## Lista para pasar a `OPERATIVA` (ADR-010, punto 12) _(Claude, 2026-09-28)_
 
 | Condición de ADR-010 | Estado | Base |

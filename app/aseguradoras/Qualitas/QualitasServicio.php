@@ -194,6 +194,46 @@ final class QualitasServicio
         return ['ok' => true, 'mensaje' => AseguradoraQualitas::FORMAS_PAGO[$forma] . ' cotizado.'];
     }
 
+    /**
+     * Todo lo que necesita la pantalla de resultado. Lo usan la ruta
+     * qualitas/resultado y las pruebas, para que no puedan diferir.
+     *
+     * Ojo: la clave es `datosAseg`, no `datos`. vista() recibe su arreglo en
+     * una variable llamada $datos y hace extract(EXTR_SKIP): una clave `datos`
+     * se saltaba y la vista veía el contexto entero (así se perdían el
+     * descuento y el estado en pantalla).
+     *
+     * @return array{cot:array, datosAseg:array, resultados:array, vencida:bool}|null
+     */
+    public static function contextoResultado(int $cotId): ?array
+    {
+        $cot = Db::uno("SELECT * FROM cot_cotizaciones WHERE id = ? AND aseguradora = 'QUALITAS'", [$cotId]);
+        if ($cot === null) {
+            return null;
+        }
+        return [
+            'cot'        => $cot,
+            'datosAseg'  => json_decode((string) $cot['datos_aseguradora_json'], true) ?: [],
+            'resultados' => self::resultados($cotId),
+            'vencida'    => !empty($cot['vence_en']) && $cot['vence_en'] < date('Y-m-d'),
+        ];
+    }
+
+    /** Resultados de una cotización de Qualitas, de más barato a más caro, con conceptos y coberturas. */
+    public static function resultados(int $cotId): array
+    {
+        $filas = Db::todos(
+            "SELECT * FROM cot_resultados WHERE cotizacion_id = ? AND aseguradora = 'QUALITAS' ORDER BY total_pagar IS NULL, total_pagar",
+            [$cotId]
+        );
+        foreach ($filas as &$f) {
+            $f['conceptos']  = json_decode((string) $f['conceptos_json'], true) ?: [];
+            $f['coberturas'] = Db::todos('SELECT * FROM cot_resultado_coberturas WHERE resultado_id = ? ORDER BY orden', [(int) $f['id']]);
+        }
+        unset($f);
+        return $filas;
+    }
+
     /** @param Resultado[] $resultados */
     public static function guardarResultados(int $cotId, array $resultados): void
     {

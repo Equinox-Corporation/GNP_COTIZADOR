@@ -158,9 +158,10 @@ final class AseguradoraQualitas implements CotizadorAseguradora
      */
     public function imprimir(array $cotizacion, array $paquete): array
     {
+        // Documento para el cliente: la comisión NUNCA aparece aquí (Albert, 2026-09-28).
         $c = $paquete['conceptos'] ?? [];
         $d = $cotizacion['datos_aseguradora'] ?? [];
-        $dinero = static fn ($n): string => $n === null || $n === '' ? 'no disponible' : '$' . number_format((float) $n, 2);
+        $num = static fn ($n): ?float => $n === null || $n === '' ? null : (float) $n;
 
         $pdf = new PdfBasico(612, 792); // carta, vertical
         $pdf->agregarPagina();
@@ -182,10 +183,12 @@ final class AseguradoraQualitas implements CotizadorAseguradora
             'Fecha'                         => (string) ($cotizacion['creada_en'] ?? date('Y-m-d H:i')),
             'Vigencia de la cotización'     => self::VIGENCIA_DIAS . ' días' . (!empty($cotizacion['vence_en']) ? ' (hasta ' . $cotizacion['vence_en'] . ')' : ''),
             'Vehículo'                      => 'Clave AMIS ' . $cotizacion['clave_vehiculo'] . ' · modelo ' . $cotizacion['modelo'],
-            'Código postal'                 => (string) $cotizacion['conductor_cp'],
+            'Código postal · estado'        => $cotizacion['conductor_cp'] . ' · ' . (self::ESTADOS[(int) ($d['estado'] ?? 0)] ?? 'no disponible'),
             'Paquete'                       => (string) $paquete['paquete'],
             'Forma de pago'                 => self::FORMAS_PAGO[(string) ($c['forma_pago'] ?? 'C')] ?? (string) ($c['forma_pago'] ?? ''),
-            'Descuento aplicado'            => ($d['porcentaje_descuento'] ?? $c['porcentaje_descuento'] ?? '') . '%',
+            'Descuento aplicado'            => isset($d['porcentaje_descuento']) || isset($c['porcentaje_descuento'])
+                ? (int) ($d['porcentaje_descuento'] ?? $c['porcentaje_descuento']) . '%'
+                : 'no disponible',
         ] as $etq => $val) {
             $pdf->fuente(true, 10);
             $pdf->texto($x, $y, $etq);
@@ -213,33 +216,62 @@ final class AseguradoraQualitas implements CotizadorAseguradora
             $y += 13;
         }
 
+        // Importes: mismos nombres, orden y formato que los PDF de Qualitas, y la
+        // misma función que usa la pantalla de resultado.
         $y += 14;
         $pdf->fuente(true, 11);
         $pdf->texto($x, $y, 'Importes');
         $y += 16;
-        foreach ([
-            'Prima neta'                                     => $dinero($paquete['prima_neta'] ?? null),
-            'Recargo (incluye descuento por pronto pago)'    => $dinero($c['recargo'] ?? null),
-            'Derecho de póliza'                              => $dinero($paquete['derechos'] ?? null),
-            'IVA'                                            => $dinero($paquete['iva'] ?? null),
-        ] as $etq => $val) {
-            $pdf->fuente(false, 10);
+        foreach (self::importes(
+            $num($paquete['prima_neta'] ?? null),
+            $num($c['recargo'] ?? null),
+            $num($paquete['derechos'] ?? null),
+            $num($paquete['iva'] ?? null),
+            $num($paquete['total_pagar'] ?? null)
+        ) as [$etq, $val]) {
+            $total = $etq === 'IMPORTE TOTAL';
+            if ($total) {
+                $pdf->linea($x, $y - 10, 562, $y - 10, [180, 180, 180]);
+                $y += 2;
+            }
+            $pdf->fuente($total, $total ? 12 : 10);
             $pdf->texto($x, $y, $etq);
             $pdf->textoDerecha(562, $y, $val);
             $y += 15;
         }
-        $pdf->linea($x, $y - 6, 562, $y - 6, [180, 180, 180]);
-        $y += 6;
-        $pdf->fuente(true, 12);
-        $pdf->texto($x, $y, 'Total a pagar');
-        $pdf->textoDerecha(562, $y, $dinero($paquete['total_pagar'] ?? null));
 
-        $y += 30;
+        // Otras formas de pago, sólo si el usuario las pidió. Sin comisión.
+        $formas = self::formasDePago($paquete);
+        if (count($formas) > 1) {
+            $y += 14;
+            $pdf->fuente(true, 11);
+            $pdf->texto($x, $y, 'Formas de pago');
+            $y += 16;
+            $pdf->fuente(true, 9);
+            $pdf->texto($x, $y, 'Forma');
+            $pdf->textoDerecha($x + 210, $y, 'Total');
+            $pdf->textoDerecha($x + 310, $y, 'Primer pago');
+            $pdf->textoDerecha($x + 420, $y, 'Pagos siguientes');
+            $pdf->textoDerecha(562, $y, 'Pagos');
+            $y += 4;
+            $pdf->linea($x, $y, 562, $y, [180, 180, 180]);
+            $y += 12;
+            $pdf->fuente(false, 9);
+            foreach ($formas as $fp) {
+                $pdf->texto($x, $y, $fp['nombre']);
+                $pdf->textoDerecha($x + 210, $y, self::monto($fp['total']));
+                $pdf->textoDerecha($x + 310, $y, self::monto($fp['primer']));
+                $pdf->textoDerecha($x + 420, $y, $fp['siguientes'] !== null ? self::monto($fp['siguientes']) : '—');
+                $pdf->textoDerecha(562, $y, $fp['pagos'] !== null ? (string) $fp['pagos'] : '—');
+                $y += 13;
+            }
+        }
+
+        $y += 24;
         $pdf->fuente(false, 8);
         $pdf->colorTexto(90, 90, 90);
         foreach ($pdf->envolver(
             'Plazo de pago: ' . ($c['pronto_pago_dias'] ?? '') . ' días (descuento por pronto pago). '
-            . 'La vigencia de ' . self::VIGENCIA_DIAS . ' días sale de los PDF de ejemplo de Qualitas; está pendiente de confirmar. '
             . 'En caso de modificación de cualquiera de los datos, se requiere una nueva cotización.',
             512
         ) as $l) {
@@ -403,6 +435,86 @@ final class AseguradoraQualitas implements CotizadorAseguradora
                 'llamada_id'           => $llamadaId,
             ],
         );
+    }
+
+    /**
+     * Formato de montos igual al de los PDF de Qualitas: sin signo de pesos,
+     * con separador de miles y dos decimales; el negativo como -168.81.
+     * null → "no disponible".
+     */
+    public static function monto(?float $n): string
+    {
+        return $n === null ? 'no disponible' : number_format($n, 2);
+    }
+
+    /**
+     * Bloque de importes con los mismos nombres y el mismo orden que los PDF
+     * de Qualitas. Lo usan la pantalla de resultado y el PDF propio, para que
+     * nunca digan cosas distintas (Albert, 2026-09-28).
+     *
+     * TASA FIN. P.F. es `Recargo` tal como llega. SUBTOTAL = prima neta +
+     * TASA FIN. P.F. + GTOS.EXPED.POL., y sólo se muestra si cuadra al centavo
+     * con lo que devolvió Qualitas (SUBTOTAL + I.V.A. = IMPORTE TOTAL); si no,
+     * se omite en lugar de mostrar un número que Qualitas no respalda.
+     *
+     * @return list<array{0:string, 1:string}>  [etiqueta, monto]
+     */
+    public static function importes(?float $primaNeta, ?float $recargo, ?float $derechos, ?float $iva, ?float $total): array
+    {
+        $filas = [
+            ['PRIMA NETA', self::monto($primaNeta)],
+            ['TASA FIN. P.F.', self::monto($recargo)],
+            ['GTOS.EXPED.POL.', self::monto($derechos)],
+        ];
+        if ($primaNeta !== null && $recargo !== null && $derechos !== null && $iva !== null && $total !== null) {
+            $subtotal = round($primaNeta + $recargo + $derechos, 2);
+            if (abs(round($subtotal + $iva, 2) - $total) < 0.005) {
+                $filas[] = ['SUBTOTAL', self::monto($subtotal)];
+            }
+        }
+        $filas[] = ['I.V.A.', self::monto($iva)];
+        $filas[] = ['IMPORTE TOTAL', self::monto($total)];
+        return $filas;
+    }
+
+    /**
+     * Formas de pago de un resultado guardado (contado + las que el usuario
+     * pidió), en el orden C, S, T, M. Primer pago y pagos siguientes son los
+     * `PrimaTotal` de los recibos 1 y 2 tal como llegan. La comisión va
+     * aparte (porcentaje y la de cada recibo) para que quien no deba verla,
+     * como el PDF, simplemente no la use.
+     *
+     * @param array{total_pagar:mixed, num_pagos:mixed, conceptos:array} $fila
+     * @return list<array{clave:string, nombre:string, total:?float, primer:?float, siguientes:?float, pagos:?int, comision_porcentaje:mixed, comision_recibos:list<?float>}>
+     */
+    public static function formasDePago(array $fila): array
+    {
+        $c = $fila['conceptos'] ?? [];
+        $formas = ['C' => [
+            'total_pagar' => $fila['total_pagar'] ?? null, 'num_pagos' => $fila['num_pagos'] ?? null, 'recibos' => $c['recibos'] ?? [],
+            'comision_porcentaje' => $c['comision_porcentaje'] ?? null,
+        ]] + (array) ($c['formas_pago'] ?? []);
+
+        $num = static fn ($v): ?float => is_numeric($v) ? (float) $v : null;
+        $salida = [];
+        foreach (self::FORMAS_PAGO as $clave => $nombre) {
+            if (!isset($formas[$clave])) {
+                continue;
+            }
+            $fp = $formas[$clave];
+            $recibos = array_values((array) ($fp['recibos'] ?? []));
+            $salida[] = [
+                'clave'               => $clave,
+                'nombre'              => $nombre,
+                'total'               => $num($fp['total_pagar'] ?? null),
+                'primer'              => $num($recibos[0]['PrimaTotal'] ?? ($clave === 'C' ? ($fp['total_pagar'] ?? null) : null)),
+                'siguientes'          => $num($recibos[1]['PrimaTotal'] ?? null),
+                'pagos'               => isset($fp['num_pagos']) && $fp['num_pagos'] !== null ? (int) $fp['num_pagos'] : ($recibos !== [] ? count($recibos) : null),
+                'comision_porcentaje' => $fp['comision_porcentaje'] ?? null,
+                'comision_recibos'    => array_map(static fn ($r) => $num($r['Comision'] ?? null), $recibos),
+            ];
+        }
+        return $salida;
     }
 
     /**

@@ -150,21 +150,6 @@ function qualitasContexto(string $error, array $previo): array
     ];
 }
 
-/** Resultados de una cotización de Qualitas, de más barato a más caro, con sus coberturas. */
-function qualitasResultados(int $cotId): array
-{
-    $filas = Db::todos(
-        "SELECT * FROM cot_resultados WHERE cotizacion_id = ? AND aseguradora = 'QUALITAS' ORDER BY total_pagar IS NULL, total_pagar",
-        [$cotId]
-    );
-    foreach ($filas as &$f) {
-        $f['conceptos']  = json_decode((string) $f['conceptos_json'], true) ?: [];
-        $f['coberturas'] = Db::todos('SELECT * FROM cot_resultado_coberturas WHERE resultado_id = ? ORDER BY orden', [(int) $f['id']]);
-    }
-    unset($f);
-    return $filas;
-}
-
 Auth::iniciarSesion();
 
 try {
@@ -920,18 +905,13 @@ switch ($ruta) {
 
     case 'qualitas/resultado':
         accesoQualitas(false);
-        $idQ  = (int) ($_GET['id'] ?? 0);
-        $cotQ = CotizacionServicio::obtener($idQ);
-        if ($cotQ === null || ($cotQ['aseguradora'] ?? '') !== 'QUALITAS') {
+        $ctxQ = QualitasServicio::contextoResultado((int) ($_GET['id'] ?? 0));
+        if ($ctxQ === null) {
             http_response_code(404);
             exit('Cotización de Qualitas no encontrada.');
         }
-        vista('qualitas_resultado', [
-            'cot'        => $cotQ,
-            'datos'      => json_decode((string) $cotQ['datos_aseguradora_json'], true) ?: [],
-            'resultados' => qualitasResultados($idQ),
-            'vencida'    => CotizacionServicio::vencida($cotQ),
-            'aviso'      => (string) ($_GET['aviso'] ?? ''),
+        vista('qualitas_resultado', $ctxQ + [
+            'aviso'        => (string) ($_GET['aviso'] ?? ''),
             'puedeCotizar' => estadoQualitas() !== Aseguradoras::SUSPENDIDA,
         ]);
         exit;
