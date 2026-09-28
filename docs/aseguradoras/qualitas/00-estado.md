@@ -197,6 +197,55 @@ Nada de esto ha hablado con Qualitas. Todo lo que diga de la respuesta es `[PEND
 - **Consideración 39** (`blindado|asistencia vial plus`): por omisión `N|S`, como los tres ejemplos.
 - **Cobertura 31** (daños por la carga): el ejemplo de la NP300 manda `A|DESCRIPCION`, que es la plantilla del manual sin llenar. El módulo la arma con el tipo y la descripción capturados.
 
+### Etapa 3 — catálogo de vehículos: se salta _(Albert, 2026-09-28)_
+
+Todavía no hay `cUsuario`/`cTarifa`. Mientras tanto, la captura pide la **clave AMIS y el modelo a mano**, con una leyenda de que el catálogo está pendiente. `catalogo()` responde `AUTH` con el mensaje "Catálogo sin credenciales configuradas" (no es un rechazo de Qualitas: no hubo llamada). Si el candado para la petición, responde `DATOS`.
+
+### Etapa 4 — adaptador, resultado común y descuento configurable _(Claude, 2026-09-28)_
+
+| Archivo | Qué hace |
+|---|---|
+| `app/aseguradoras/Qualitas/AseguradoraQualitas.php` | Implementa `CotizadorAseguradora`. Un movimiento por paquete → N `Resultado`. Registrado en `Aseguradoras::cliente()` |
+| `app/aseguradoras/Qualitas/QualitasServicio.php` | Guarda en `cot_cotizaciones`, `cot_resultados` y `cot_resultado_coberturas` con `aseguradora='QUALITAS'`. Otras formas de pago, a pedido |
+| `app/plataforma/RangoDescuento.php` | Rango de descuento, común a la plataforma |
+| `app/vistas/descuentos.php` + rutas `descuentos` y `descuentos/guardar` en `public/index.php` | Pantalla de administración del rango (sólo administradores) |
+| `app/core/Esquema.php` | Tablas nuevas `sys_descuentos`, `sys_descuentos_cambios`, `cat_qua_paquetes` y `cat_qua_coberturas` (sólo agregar; la semilla corre una vez, al crearlas) |
+| `app/aseguradoras/Qualitas/pruebas/prueba_etapa4_sin_red.php` | 64 pruebas sin red, en una base temporal, usando la **respuesta real** de la Captiva (id 123) |
+
+**Cómo arma el resultado:**
+
+- **Precio** = `PrimaTotal` (id 123). Prima neta, derechos (`Derecho`) e IVA (`Impuesto`) van en sus columnas.
+- **`conceptos_json`** guarda:
+  - `recargo` (pronto pago en negativo) y `pronto_pago_dias`;
+  - `porcentaje_descuento`, `forma_pago` y `no_cotizacion`;
+  - `comision_porcentaje` (`Primas/Comision`) y `comision_importe` (`Recibos/Comision` cuando hay un solo recibo; con varios, cada uno queda en `recibos` sin sumarse). Lo que no llega queda `null`, que en pantalla será "no disponible";
+  - las primas y los recibos crudos, y el id de la llamada.
+- **Coberturas:** nombre del catálogo, suma y deducible **de la respuesta**, en texto legible ("$468,000", "5%", "0 UMA").
+
+**Descuento:**
+
+- `sys_descuentos` sembrada una sola vez con Qualitas: Todos 0–55, autos 0–55, pick-up 0–55, camiones 0–30 y motos 0–20. Cada cambio queda en `sys_descuentos_cambios` con quién, cuándo, antes y después.
+- `RangoDescuento` busca primero aseguradora + tipo, luego aseguradora + Todos. Si no hay ninguna fila, el rango es 0–0.
+- Qualitas usa la fila Todos mientras no se confirme qué dato del catálogo dice el tipo de vehículo.
+- El porcentaje se valida en el servidor en dos lugares, `QualitasServicio` y el adaptador, antes de guardar o enviar nada. La validación en pantalla llega con la Etapa 5.
+- GNP no se conecta a esto y no aparece en la pantalla de administración.
+
+**Paquetes (`cat_qua_paquetes`):**
+
+| Paquete | `<Paquete>` | Estado |
+|---|---|---|
+| Amplia | `1` | Cotizada en QA (id 123) |
+| Limitada | `3` | Habilitada; nunca se ha cotizado `[PENDIENTE]` |
+| Básica | sin código | Deshabilitada: "todavía no" |
+
+Las coberturas (`cat_qua_coberturas`) salen del Anexo 5 (S/N/AD/O) y del juego del ejemplo (1, 3, 4, 5, 6, 7, 14, 47). Limitada no manda DM (Anexo 5: N). Deducibles elegibles: DM 3/5/10 y RT 5/10/20; cualquier otro valor se rechaza sin llamar.
+
+**Formas de pago:** por omisión sólo contado. `QualitasServicio::otraFormaDePago()` cotiza semestral, trimestral o mensual del mismo paquete **sólo cuando el usuario lo pide**. Cada forma es su propia llamada registrada, y el resultado se guarda en `conceptos_json.formas_pago`; el precio de contado no cambia. El botón en pantalla es de la Etapa 5.
+
+**`imprimir()`:** PDF propio con `PdfBasico`, que aclara que no lo emite Qualitas. Vigencia de 7 días `[PENDIENTE]`.
+
+**Aplicado a la base real** el 2026-09-28, antes probado contra una copia. Respaldo: `datos/cotizador_gnp.sqlite.bak_pre_qualitas_etapa4_20260928_111345`. Resultado: 4 tablas nuevas; cotizaciones, resultados, llamadas, usuarios y tablas `cat_*` de GNP sin cambio; segunda corrida sin cambios.
+
 ## Reglas verificadas contra el servicio de Qualitas
 
 Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, con su `sys_llamadas.id`. Lo que sale de documentos o de los PDF de ejemplo sigue `[PENDIENTE]`. La petición y la respuesta crudas de cada llamada están también en `docs/aseguradoras/qualitas/evidencia/`.
@@ -209,6 +258,7 @@ Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, c
 | 121 | `Test` | HTTP 500 con la página genérica de IIS ("The page cannot be displayed because an internal server error has occurred"). Explicado por la 122 |
 | 122 | `GET …/WsEmision.asmx?WSDL` | OK, 3,237 bytes |
 | 123 | `obtenerNuevaEmision`, Captiva 2026, AMIS 21191, CP 11590, Estado 9, Amplia, descuento 55, pronto pago 14 | **OK**, `NoCotizacion` 1219390564, 1,265 ms |
+| 124 | Misma Captiva con `PorcentajeDescuento=60`, para ver el formato de un error (autorizada por Albert el 2026-09-28; se esperaba el error 7) | `RED`: "Could not resolve host". **No llegó a Qualitas.** Windows sí resolvía el nombre, pero el PHP de la sesión no, desde ninguna de las dos terminales. Por la instrucción de no reintentar, no se repitió. El formato de `<CodigoError>` sigue `[PENDIENTE]` |
 
 ### 1. El servicio en QA sólo tiene `obtenerNuevaEmision` `[CONFIRMADO]` (id 122, 121)
 

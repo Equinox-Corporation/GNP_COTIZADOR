@@ -498,6 +498,9 @@ SQL);
         // la siguiente conexión la mueve.
         $pdo->exec("UPDATE sys_aseguradoras SET estado = 'EN_INTEGRACION' WHERE clave = 'QUALITAS' AND estado = 'PREPARADA'");
 
+        self::migrarDescuentos($pdo);
+        self::migrarCatalogoQualitas($pdo);
+
         // v_cotizaciones necesita la columna aseguradora para poder filtrar el
         // historial por compañía (ADR-010 punto 6 de la Fase 1). CREATE VIEW
         // IF NOT EXISTS de arriba no toca una vista que ya existe, así que en
@@ -517,6 +520,165 @@ SQL);
                               WHEN date(c.vence_en) < date('now','localtime') THEN 1 ELSE 0 END      AS vencida
                  FROM    cot_cotizaciones c"
             );
+        }
+    }
+
+    private static function existeTabla(PDO $pdo, string $tabla): bool
+    {
+        $st = $pdo->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?");
+        $st->execute([$tabla]);
+        return $st->fetchColumn() !== false;
+    }
+
+    /**
+     * 28-sep-2026: rango de descuento configurable, común a la plataforma
+     * (decisión de Albert, docs/aseguradoras/qualitas/00-estado.md). Sirve a
+     * cualquier compañía que reciba el descuento en la petición; GNP no lo
+     * recibe y no se conecta a esto.
+     *
+     * tipo_vehiculo: TODOS | AUTO | PICKUP | CAMION | MOTO. TODOS es la fila
+     * por omisión de cada aseguradora. Sin fila = no se permite descuento
+     * (rango 0–0, lo resuelve RangoDescuento), nunca "sin límite".
+     *
+     * La semilla corre sólo cuando la tabla se crea: después, lo que el
+     * administrador edite no lo vuelve a pisar nadie.
+     */
+    private static function migrarDescuentos(PDO $pdo): void
+    {
+        $nueva = !self::existeTabla($pdo, 'sys_descuentos');
+
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS sys_descuentos (
+    -- Sin REFERENCES a propósito: en una base nueva migrar() corre antes de
+    -- que semillas() dé de alta sys_aseguradoras. RangoDescuento lo valida.
+    aseguradora     TEXT    NOT NULL,
+    tipo_vehiculo   TEXT    NOT NULL,
+    minimo          INTEGER NOT NULL,
+    maximo          INTEGER NOT NULL,
+    actualizado_por TEXT    NOT NULL DEFAULT '',
+    actualizado_en  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+    PRIMARY KEY (aseguradora, tipo_vehiculo),
+    CHECK (minimo >= 0 AND minimo <= maximo AND maximo <= 100)
+);
+
+-- Cada cambio al rango, con quién y cuándo. Sólo se agrega, nunca se edita.
+CREATE TABLE IF NOT EXISTS sys_descuentos_cambios (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    aseguradora    TEXT    NOT NULL,
+    tipo_vehiculo  TEXT    NOT NULL,
+    minimo_antes   INTEGER NULL,
+    maximo_antes   INTEGER NULL,
+    minimo         INTEGER NOT NULL,
+    maximo         INTEGER NOT NULL,
+    usuario_id     INTEGER NULL,
+    usuario        TEXT    NOT NULL DEFAULT '',
+    cambiado_en    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+SQL);
+
+        if (!$nueva) {
+            return;
+        }
+
+        // Semilla de Qualitas (Albert, 2026-09-28). Los topes salen del
+        // formulario de alta del negocio 08902: 55 autos/pick-up, 30 camiones,
+        // 20 motos. Mientras no se sepa qué dato del catálogo dice el tipo de
+        // vehículo, se usa la fila TODOS.
+        $ins = $pdo->prepare('INSERT INTO sys_descuentos (aseguradora, tipo_vehiculo, minimo, maximo, actualizado_por) VALUES (?,?,?,?,?)');
+        $log = $pdo->prepare('INSERT INTO sys_descuentos_cambios (aseguradora, tipo_vehiculo, minimo, maximo, usuario) VALUES (?,?,?,?,?)');
+        foreach ([['TODOS', 0, 55], ['AUTO', 0, 55], ['PICKUP', 0, 55], ['CAMION', 0, 30], ['MOTO', 0, 20]] as [$tipo, $min, $max]) {
+            $ins->execute(['QUALITAS', $tipo, $min, $max, 'semilla inicial (Albert, 2026-09-28)']);
+            $log->execute(['QUALITAS', $tipo, $min, $max, 'semilla inicial (Albert, 2026-09-28)']);
+        }
+    }
+
+    /**
+     * 28-sep-2026: paquetes y coberturas de Qualitas (ADR-010 punto 6,
+     * prefijo cat_qua_). Sembrados del Anexo 5 del manual (marca S/N/AD/O
+     * por paquete) y de las condiciones del negocio 08902 (Amplia, Limitada,
+     * Básica; DM 3/5/10, RT 5/10/20).
+     *
+     * `enviar` = 1 si la cobertura va en la petición por omisión. El juego
+     * que se manda es el del ejemplo de Qualitas que ya respondió en QA
+     * (Amplia, sys_llamadas.id 123). Para Limitada se quita DM, que el Anexo 5
+     * marca N [PENDIENTE: no se ha cotizado].
+     *
+     * "Básica" no tiene código en el Anexo 5: queda deshabilitada hasta que
+     * Qualitas lo confirme. Se dice "todavía no", no se adivina.
+     *
+     * Semilla sólo al crear las tablas, igual que sys_descuentos.
+     */
+    private static function migrarCatalogoQualitas(PDO $pdo): void
+    {
+        $nueva = !self::existeTabla($pdo, 'cat_qua_paquetes');
+
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS cat_qua_paquetes (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo   TEXT    NOT NULL DEFAULT '',   -- lo que va en <Paquete>; vacío = sin código confirmado
+    nombre   TEXT    NOT NULL UNIQUE,
+    activo   INTEGER NOT NULL DEFAULT 0,
+    nota     TEXT    NOT NULL DEFAULT '',
+    orden    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS cat_qua_coberturas (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    paquete_id          INTEGER NOT NULL REFERENCES cat_qua_paquetes(id),
+    no_cobertura        INTEGER NOT NULL,           -- Anexo 4
+    abreviatura         TEXT    NOT NULL DEFAULT '',
+    nombre              TEXT    NOT NULL,
+    marca               TEXT    NOT NULL DEFAULT '', -- Anexo 5: S | N | AD | O ('' = no está en el anexo)
+    enviar              INTEGER NOT NULL DEFAULT 0,  -- 1 = va en la petición por omisión
+    suma                TEXT    NOT NULL DEFAULT '0',
+    tipo_suma           TEXT    NOT NULL DEFAULT '0',
+    deducible           TEXT    NOT NULL DEFAULT '0',
+    deducibles_permitidos TEXT  NOT NULL DEFAULT '', -- "3,5,10"; vacío = no se elige
+    unidad_deducible    TEXT    NOT NULL DEFAULT '',
+    orden               INTEGER NOT NULL DEFAULT 0,
+    fuente              TEXT    NOT NULL DEFAULT '',
+    UNIQUE (paquete_id, no_cobertura)
+);
+SQL);
+
+        if (!$nueva) {
+            return;
+        }
+
+        $paq = $pdo->prepare('INSERT INTO cat_qua_paquetes (codigo, nombre, activo, nota, orden) VALUES (?,?,?,?,?)');
+        $paq->execute(['1', 'Amplia', 1, 'Código 01 del Anexo 5. Cotizado en QA con "1" (sys_llamadas.id 123).', 1]);
+        $amplia = (int) $pdo->lastInsertId();
+        $paq->execute(['3', 'Limitada', 1, 'Código 03 del Anexo 5. [PENDIENTE] no se ha cotizado todavía.', 2]);
+        $limitada = (int) $pdo->lastInsertId();
+        $paq->execute(['', 'Básica', 0, 'Autorizada en el negocio 08902, pero sin código en el Anexo 5. Deshabilitada hasta que Qualitas lo confirme.', 3]);
+
+        $cob = $pdo->prepare(
+            'INSERT INTO cat_qua_coberturas (paquete_id, no_cobertura, abreviatura, nombre, marca, enviar, suma, tipo_suma, deducible, deducibles_permitidos, unidad_deducible, orden, fuente)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+        );
+
+        // [no, abreviatura, nombre, marca Amplia, marca Limitada, enviar, suma, tipo_suma, deducible, permitidos, unidad, fuente]
+        // Marcas del Anexo 5. Las columnas 6 (MC) y 47 (RC complementaria) no
+        // vienen en el anexo; van porque las manda el ejemplo de Qualitas.
+        $filas = [
+            [1,  'DM',     'Daños Materiales',                                  'S',  'N',  1, '0',       '0',  '5',  '3,5,10',  '%',   'Anexo 5 · ejemplo QA id 123'],
+            [2,  'SPT',    'DM Sólo Pérdida Total',                             'N',  'N',  0, '0',       '0',  '0',  '',        '',    'Anexo 5'],
+            [3,  'RT',     'Robo Total',                                        'S',  'S',  1, '0',       '0',  '10', '5,10,20', '%',   'Anexo 5 · ejemplo QA id 123'],
+            [4,  'RC',     'Responsabilidad Civil por Daños a Terceros',        'S',  'S',  1, '3000000', '0',  '0',  '',        'UMA', 'Anexo 5 · ejemplo QA id 123'],
+            [5,  'GM',     'Gastos Médicos Ocupantes',                          'S',  'S',  1, '250000',  '0',  '0',  '',        '',    'Anexo 5 · ejemplo QA id 123'],
+            [6,  'MC',     'Muerte del Conductor por Accidente',                '',   '',   1, '100000',  '0',  '0',  '',        '',    'ejemplo QA id 123'],
+            [7,  'GL',     'Gastos Legales',                                    'AD', 'AD', 1, '0',       '0',  '0',  '',        '',    'Anexo 5 · ejemplo QA id 123'],
+            [11, 'ERC',    'Extensión de RC',                                   'O',  'O',  0, '0',       '0',  '0',  '',        '',    'Anexo 5'],
+            [12, 'EDDM',   'Exención de Deducible Daños Materiales',            'N',  'N',  0, '0',       '0',  '0',  '',        '',    'Anexo 5'],
+            [13, 'RCPAS',  'RC Pasajero',                                       'N',  'N',  0, '0',       '0',  '0',  '',        '',    'Anexo 5'],
+            [14, 'AV',     'Asistencia Vial',                                   'AD', 'AD', 1, '0',       '0',  '0',  '',        '',    'Anexo 5 · ejemplo QA id 123'],
+            [17, 'GT',     'Gastos de Transporte / Pérdida de Uso por Pérdida Total', 'O', 'N', 0, '0',  '0',  '0',  '',        '',    'Anexo 5'],
+            [22, 'RCL',    'RC Legal Ocupantes',                                'O',  'O',  0, '0',       '0',  '0',  '',        '',    'Anexo 5'],
+            [47, 'RCCOMP', 'RC Complementaria Personas',                        '',   '',   1, '2000000', '14', '0',  '',        '',    'ejemplo QA id 123'],
+        ];
+        foreach ($filas as $i => [$no, $abr, $nom, $mAmp, $mLim, $env, $suma, $ts, $ded, $perm, $uni, $fte]) {
+            $cob->execute([$amplia, $no, $abr, $nom, $mAmp, $mAmp === 'N' ? 0 : $env, $suma, $ts, $ded, $perm, $uni, $i, $fte]);
+            $cob->execute([$limitada, $no, $abr, $nom, $mLim, $mLim === 'N' ? 0 : $env, $suma, $ts, $ded, $perm, $uni, $i, $fte]);
         }
     }
 

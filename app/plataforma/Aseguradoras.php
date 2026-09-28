@@ -54,6 +54,7 @@ final class Aseguradoras
     {
         return match (strtoupper($clave)) {
             'GNP' => new AseguradoraGnp(),
+            'QUALITAS' => new AseguradoraQualitas(),
             default => throw new RuntimeException("No hay adaptador de aseguradora para \"{$clave}\"."),
         };
     }

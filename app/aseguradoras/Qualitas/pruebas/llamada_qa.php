@@ -16,6 +16,7 @@ declare(strict_types=1);
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php test            --autorizado
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php wsdl            --autorizado
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-captiva --autorizado
+ *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php error-descuento-60 --autorizado
  */
 
 require dirname(__DIR__, 3) . '/scripts/_arranque.php';
@@ -74,6 +75,7 @@ switch ($que) {
         break;
 
     case 'cotizar-captiva':
+    case 'error-descuento-60':
         // Mismos datos que el ejemplo uv5931410001849963aa (Captiva 2026, AMIS 21191,
         // CP 11590, Estado 9, Amplia, descuento 55, pronto pago 14). Fechas: hoy.
         $solicitud = [
@@ -82,7 +84,10 @@ switch ($que) {
             'conductor_cp'      => '11590',
             'datos_aseguradora' => [
                 'estado' => '9', 'uso' => '1', 'servicio' => '1', 'forma_pago' => 'C',
-                'porcentaje_descuento' => 55,
+                // error-descuento-60: fuera del rango del negocio (0-55) a propósito, para ver
+                // el formato real de <CodigoError> (se espera el 7). Autorizado por Albert el
+                // 2026-09-28. Este script no usa RangoDescuento; el módulo sí lo aplica.
+                'porcentaje_descuento' => $que === 'error-descuento-60' ? 60 : 55,
             ],
             'paquete' => ['clave' => '1', 'coberturas' => [
                 ['no' => 1,  'suma' => '0',       'tipo_suma' => 0,  'deducible' => 5],
@@ -95,17 +100,18 @@ switch ($que) {
                 ['no' => 47, 'suma' => '2000000', 'tipo_suma' => 14, 'deducible' => 0],
             ]],
         ];
-        echo "Qualitas QA · cotización Captiva 2026 (AMIS 21191, Amplia, 55%, pronto pago 14)\n";
+        $pct = $solicitud['datos_aseguradora']['porcentaje_descuento'];
+        echo "Qualitas QA · cotización Captiva 2026 (AMIS 21191, Amplia, {$pct}%, pronto pago 14)\n";
         $xml = QualitasXml::cotizacion($solicitud, $cliente->configXml());
-        $r = $cliente->cotizar($xml, null, 'QUALITAS obtenerNuevaEmision TipoMovimiento=2 · Captiva 21191 (Etapa 2)');
+        $r = $cliente->cotizar($xml, null, "QUALITAS obtenerNuevaEmision TipoMovimiento=2 · Captiva 21191 · descuento {$pct}%");
         $resumen($r);
         foreach ($r['movimientos'] ?? [] as $m) {
             echo '  movimiento: ' . json_encode($m, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
         }
-        $guardar($r, 'cotizar_captiva');
+        $guardar($r, $que === 'error-descuento-60' ? 'error_descuento_60' : 'cotizar_captiva');
         break;
 
     default:
-        fwrite(STDERR, "Uso: llamada_qa.php test|wsdl|cotizar-captiva --autorizado\n");
+        fwrite(STDERR, "Uso: llamada_qa.php test|wsdl|cotizar-captiva|error-descuento-60 --autorizado\n");
         exit(1);
 }

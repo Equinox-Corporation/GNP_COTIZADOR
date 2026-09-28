@@ -21,6 +21,9 @@ define('BASE_URL', rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] 
 foreach (['core/Esquema', 'core/Db', 'core/Auth', 'core/GnpClient', 'core/PdfBasico',
           'plataforma/CotizadorAseguradora', 'plataforma/Resultado', 'plataforma/Aseguradoras', 'plataforma/CandadoEmision',
           'aseguradoras/Gnp/AseguradoraGnp',
+          'plataforma/RangoDescuento',
+          'aseguradoras/Qualitas/QualitasXml', 'aseguradoras/Qualitas/QualitasClient',
+          'aseguradoras/Qualitas/AseguradoraQualitas', 'aseguradoras/Qualitas/QualitasServicio',
           'servicios/CatalogoServicio', 'servicios/CotizacionServicio', 'servicios/ImpresionServicio',
           'servicios/EvidenciaServicio', 'servicios/UsuarioServicio', 'servicios/ComparativoServicio',
           'servicios/PlantillaServicio', 'servicios/JuegaYCompararServicio', 'servicios/ArmadorLibreServicio'] as $c) {
@@ -799,6 +802,43 @@ switch ($ruta) {
         // Reabre el armador sobre la plantilla recién creada: misma combinación,
         // ahora ya guardada — así se puede seguir cotizando con ella de una vez.
         redirigir('armador', ['plantilla_id' => $rGuardarArm['id'], 'ok' => 'Plantilla guardada como "' . (string) ($_POST['nombre_nueva_plantilla'] ?? '') . '".']);
+
+    // ─── Rango de descuento por aseguradora — sólo administradores ─────────
+    // Tabla común sys_descuentos (decisión de Albert, 2026-09-28). Hoy sólo
+    // la usa Qualitas; GNP no recibe descuento y no se conecta a esto.
+    case 'descuentos':
+        Auth::exigirAdmin();
+        vista('descuentos', [
+            'filas'        => RangoDescuento::todas(Db::get()),
+            'cambios'      => RangoDescuento::cambios(Db::get()),
+            'aseguradoras' => array_values(array_filter(
+                Aseguradoras::todas(Db::get()),
+                static fn (array $a): bool => $a['clave'] !== 'GNP'
+            )),
+            'error'        => (string) ($_GET['error'] ?? ''),
+            'ok'           => (string) ($_GET['ok'] ?? ''),
+        ]);
+        exit;
+
+    case 'descuentos/guardar':
+        Auth::exigirAdmin();
+        if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
+            redirigir('descuentos');
+        }
+        $asegDesc = strtoupper((string) ($_POST['aseguradora'] ?? ''));
+        if ($asegDesc === 'GNP') {
+            redirigir('descuentos', ['error' => 'GNP no recibe descuento en la petición: no tiene rango.']);
+        }
+        $errDesc = RangoDescuento::guardar(
+            Db::get(),
+            $asegDesc,
+            (string) ($_POST['tipo_vehiculo'] ?? ''),
+            $_POST['minimo'] ?? '',
+            $_POST['maximo'] ?? '',
+            Auth::id(),
+            Auth::nombre()
+        );
+        redirigir('descuentos', $errDesc !== null ? ['error' => $errDesc] : ['ok' => 'Rango guardado.']);
 
     default:
         redirigir('cotizar');
