@@ -262,7 +262,7 @@ Las coberturas (`cat_qua_coberturas`) salen del Anexo 5 (S/N/AD/O) y del juego d
 
 - **`layout.php`: un solo cambio**, el enlace "Descuentos" dentro del bloque de administradores. El nombre "Qualitas (en preparación)" del menú sigue sin ser enlace; al cotizador se entra desde "Descuentos".
 - **`layout.php`, segundo cambio (Albert, 2026-09-28):** en el bloque de administradores, "Qualitas (en preparación)" pasa a ser enlace a `?r=qualitas`; HDI y Zurich siguen como texto. Regresión con 16 pantallas × 2 usuarios, contra la versión anterior al cambio, con copias verificadas por `verificar_copia_sin_red.php`: mismos códigos HTTP. Ignorando la sangría, la única diferencia en el HTML del admin es ese `<span>` que pasa a `<a>`; el no-admin ve el HTML idéntico y recibe 403 en `?r=qualitas` y `?r=descuentos`. Cero errores PHP. **Pendiente:** cuando Qualitas pase a `OPERATIVA`, sale de este bloque (que sólo lista las que no cotizan) y habrá que darle un lugar en el menú para todos.
-- `public/index.php`, además de las rutas nuevas, lleva tres guardas:
+- `public/index.php`, además de las rutas nuevas, lleva tres guardas, **aprobadas por Albert el 2026-09-28**:
   1. `resultado` manda las cotizaciones de Qualitas a `qualitas/resultado`. La pantalla de GNP tiene un botón de imprimir que llama a GNP.
   2. `imprimir` rechaza toda cotización que no sea de GNP. Sin esta guarda, `ImpresionServicio` habría llamado a **GNP producción** con el folio de Qualitas.
   3. `historial`: un no administrador no ve cotizaciones de compañías que no estén `OPERATIVA` o `SUSPENDIDA`. Las filas de GNP no cambian.
@@ -286,12 +286,14 @@ Las coberturas (`cat_qua_coberturas`) salen del Anexo 5 (S/N/AD/O) y del juego d
   - Sin servidor de Qualitas (puerto cerrado): cada forma de pago y cada paquete quedó como su propia fila `RED` en `sys_llamadas`, y la cotización quedó en `ERROR` con el mensaje en pantalla.
 - **La base real no cambió:** 40 cotizaciones de GNP y 118 llamadas de GNP antes y después. Las copias se borraron al terminar.
 
-### Etapa 6 — prueba de igualdad (pendiente de autorización)
+### Etapa 6 — prueba de igualdad (corrida por Albert el 2026-09-28: `sys_llamadas` 127 a 130)
 
 Cuatro cotizaciones en QA:
 
 - las 3 de "Ejemplos Qualitas": Captiva y NP300 con 55%, Vento con 20%, pronto pago 14;
 - **una de Limitada (código 3) con la Captiva**, para confirmar el paquete (Albert, 2026-09-28).
+
+**Resultado:** las cuatro salieron OK. Captiva, NP300 y Vento dan 5 de 5 conceptos iguales al PDF de Qualitas (15/15), y la Limitada cotiza. Detalle en "Reglas verificadas", puntos 12 a 14.
 
 La llamada de error con descuento de 60% ya se hizo: la corrió Albert desde su terminal (id 126, ver "Reglas verificadas", punto 11).
 
@@ -312,6 +314,28 @@ mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva
 - **La Limitada** pasa por el módulo: paquete del catálogo con `<Paquete>3</Paquete>` y coberturas 3, 4, 5, 6, 7, 14 y 47, sin DM. No tiene PDF de referencia: sólo confirma que el paquete cotiza.
 - Todos dejan su fila en `sys_llamadas` y la petición y la respuesta crudas en `evidencia/`.
 
+## Lista para pasar a `OPERATIVA` (ADR-010, punto 12) _(Claude, 2026-09-28)_
+
+| Condición de ADR-010 | Estado | Base |
+|---|---|---|
+| Cumple el contrato (punto 3) y tiene el candado de emisión (punto 4) | ✅ | `AseguradoraQualitas` implementa `CotizadorAseguradora`. Candado doble (ruta + contenido); 16 variantes bloqueadas en prueba sin red |
+| Guarda el resultado en el formato común (punto 7) | ✅ | Precio = `PrimaTotal`, en `cot_resultados`/`cot_resultado_coberturas` con `aseguradora='QUALITAS'` (pruebas de la Etapa 4) |
+| Deja evidencia de cada llamada, con credenciales enmascaradas (ADR-006) | ✅ | `sys_llamadas` 120 a 130 con `aseguradora='QUALITAS'`. `cUsuario`/`cTarifa` enmascarados; el servicio de emisión no lleva contraseña |
+| Reglas verificadas documentadas | ✅ | Esta sección y "Reglas verificadas", puntos 1 a 14 |
+| Las cotizaciones de prueba dan el mismo precio que la compañía | ✅ en QA · ❌ en producción | 15/15 contra los PDF de Qualitas (ids 127 a 129). Falta la cotización de control en producción |
+| GNP sigue funcionando igual | ✅ | Regresión sin llamadas de las Etapas 5 y del menú: HTML de GNP idéntico salvo el menú de administradores; imprimir de GNP no acepta cotizaciones de Qualitas |
+
+**Falta para `OPERATIVA`:**
+
+- [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo.
+- [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
+- [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
+- [ ] **Producción va por `http` sin cifrar** según el manual. Preguntar a Qualitas si hay `https` antes de mandar datos reales.
+- [ ] **Gastos Legales y Asistencia Vial:** hoy se muestran con la suma que devuelve Qualitas ($3,000,000 y $20,000), donde su PDF dice AMPARADO. Pendiente de decidir la presentación (punto 14).
+- [ ] **Una cotización de punta a punta desde la pantalla contra QA.** Las cuatro de la Etapa 6 salieron del script; la pantalla y `QualitasServicio` sólo se han probado con el transporte falso.
+- [ ] **Otras formas de pago** (semestral, trimestral, mensual): nunca se han cotizado contra el servicio.
+- [ ] **Menú para todos los usuarios:** al pasar a `OPERATIVA`, Qualitas sale del bloque "en preparación" de los administradores y hoy no hay enlace para los demás. Hay que darle un lugar en `layout.php` antes del cambio de estado.
+- [ ] Sin bloquear, pero pendientes: paquete Básica sin código; vigencia de 7 días sin confirmar; comisión de camiones sin ver en el servicio; los códigos `AUTH` y `SISTEMA` de la tabla de errores no se han visto llegar.
 ## Reglas verificadas contra el servicio de Qualitas
 
 Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, con su `sys_llamadas.id`. Lo que sale de documentos o de los PDF de ejemplo sigue `[PENDIENTE]`. La petición y la respuesta crudas de cada llamada están también en `docs/aseguradoras/qualitas/evidencia/`.
@@ -435,3 +459,47 @@ Captiva 2026 con `PorcentajeDescuento=60` (el tope del negocio es 55), corrida p
 - **Tope de descuento de autos: 55** `[CONFIRMADO]`: lo dice el propio servicio ("rango valido 0 a 55"). La semilla de `sys_descuentos` para autos (0–55) queda respaldada por el servicio. Camiones (30) y motos (20) siguen respaldados **sólo por el formulario del negocio**.
 - **Con error, Qualitas devuelve el `Derecho` que se le mandó (750) y el resto de las primas vacías**: sin `NoCotizacion`, sin coberturas y sin recibos. El 750 no es un precio. `prueba_etapa4_sin_red.php` (sección 7) usa esta respuesta real y comprueba que no se guarda ningún renglón en `cot_resultados`, que el historial no muestra precio y que la pantalla muestra el mensaje tal cual, sin precio. Ya se comportaba así; sólo se agregó la prueba.
 - Otras diferencias contra la respuesta exitosa (id 123), sólo anotadas: `TipoEndoso` regresó `6` (antes `21`), `Moneda` `1` (se mandó `0`) y `Plazo` `1` (se mandó vacío).
+
+### 12. Prueba de igualdad contra los PDF de Qualitas `[CONFIRMADO]` (ids 127, 128, 129)
+
+Mismos datos que "Ejemplos Qualitas" (fechas: hoy). Los cinco conceptos de cada PDF, contra la respuesta de QA:
+
+| Concepto | Captiva (127) | NP300 (128) | Vento (129) |
+|---|---|---|---|
+| Prima neta | 8,440.28 ✓ | 14,710.43 ✓ | 6,234.08 ✓ |
+| Pronto pago (en `Recargo`) | −168.81 ✓ | −294.21 ✓ | −124.68 ✓ |
+| Derecho de póliza | 750.00 ✓ | 750.00 ✓ | 750.00 ✓ |
+| IVA | 1,443.44 ✓ | 2,426.60 ✓ | 1,097.50 ✓ |
+| Total a pagar | 10,464.91 ✓ | 17,592.82 ✓ | 7,956.90 ✓ |
+
+**15 de 15 iguales.** La Captiva repitió exacto el total de la id 123 (10,464.91), cinco días después del PDF (23-sep) y el mismo día de la 123.
+
+### 13. Limitada (código 3) cotiza `[CONFIRMADO]` (id 130)
+
+Captiva 2026, AMIS 21191, 55%, pronto pago 14, por el módulo (paquete del catálogo, `<Paquete>3</Paquete>`). Sin PDF de referencia.
+
+- Total **6,328.26**. Prima neta 4,801.43, `Recargo` −96.03, derecho 750, IVA 872.86. Comisión 11 / 528.15.
+- **Sin DM**: no se mandó y no regresó. **RT con deducible 10** (`00010`), suma 468,000.
+- **La aritmética es la misma que en los demás:**
+
+  ```
+  4,801.43 × 2% = 96.0286 → 96.03
+  4,801.43 − 96.03 + 750.00 = 5,455.40
+  5,455.40 × 16% = 872.864 → 872.86
+  5,455.40 + 872.86 = 6,328.26 ✓
+  ```
+
+### 14. Gastos Legales y Asistencia Vial: la suma la pone Qualitas `[CONFIRMADO]` (ids 123, 127–130)
+
+En la petición mandamos `SumaAsegurada` **0** para Gastos Legales (7) y Asistencia Vial (14). Qualitas las regresa llenas en las cinco respuestas:
+
+| Llamada | Vehículo | GL (7) | AV (14) | RC por la carga (31) |
+|---|---|---|---|---|
+| 123, 127 | Captiva, Amplia | 3,000,000 | 20,000 | — |
+| 128 | NP300, carga | 3,000,000 | 20,000 | 0 (mandamos `A\|DESCRIPCION`) |
+| 129 | Vento, moto | 3,000,000 | **15,000** | — |
+| 130 | Captiva, Limitada | 3,000,000 | 20,000 | — |
+
+- **En los PDF de Qualitas las tres dicen AMPARADO.** El importe no es un invento del módulo, pero tampoco es como Qualitas presenta esas coberturas.
+- Hoy el módulo muestra cualquier suma mayor que 0 como monto ("$3,000,000", "$20,000"), y la de 0 como "Amparada". La RC por la carga queda en "Amparada" por coincidencia, no por regla.
+- **La presentación está pendiente de decidir**; no se ha corregido.
