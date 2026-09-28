@@ -235,6 +235,71 @@ Nada de esto ha hablado con Qualitas. Todo lo que diga de la respuesta es `[PEND
 
 Todavía no hay `cUsuario`/`cTarifa`. Mientras tanto, la captura pide la **clave AMIS y el modelo a mano**, con una leyenda de que el catálogo está pendiente. `catalogo()` responde `AUTH` con el mensaje "Catálogo sin credenciales configuradas" (no es un rechazo de Qualitas: no hubo llamada). Si el candado para la petición, responde `DATOS`.
 
+
+#### Catálogo: diagnóstico de las fuentes propias _(Claude, 2026-09-28)_
+
+Se revisó, sólo en lectura y sin llamadas, si los datos de Equinox servían como catálogo provisional de Qualitas.
+
+| Fuente | Qué trae | ¿Claves de Qualitas? | ¿Tipo de vehículo? | Fecha |
+|---|---|---|---|---|
+| `app/core/cat_comercial.db` (este proyecto) | 7,777 combinaciones marca + línea + año, 1976–2027; sin versión | **No** (sólo el mapeo a GNP) | No: todas "individual" | 27-ago-2026 |
+| `nexo/proyectos/cat_comercial/data/cat_comercial.db`, tabla `easycot_raw` | 13,053 combinaciones marca + línea + año; sin versión | **No** | Todas "Automóvil Individual": el robot sólo recorrió autos | 29-ago al 4-sep-2026 |
+| `nexo/proyectos/cat_comercial/data/catalogo.db`, del robot EasyCot/SICAS | Versiones con clave por compañía (ANA, Momento, Qualitas, Sura, Zurich) | **Sólo 14 combinaciones línea-año, 68 claves** de 5 dígitos (formato AMIS, nunca probadas contra Qualitas) | No | 1 al 13-ago-2026 |
+| `nexo/.../Catalogos Homologados.xlsx` | Submarcas, marcas y catálogo de GNP | No | No | 28-ago-2026 |
+
+- **Las 3 claves ya probadas en QA no están en ninguna fuente** (21191 Captiva, 11333 NP300, 68133 Vento): no hay coincidencia contra la cual validar el resto.
+- **Decisión de Albert (2026-09-28):**
+  - **(b) para pruebas**: las AMIS se toman del portal de Qualitas, vehículo por vehículo.
+  - **(c) para operar**: wsTarifa, cuando Qualitas entregue `cUsuario`/`cTarifa`.
+  - **(a) descartada**: no se usa el robot de SICAS/EasyCot para Qualitas.
+
+#### Catálogo provisional: diseño aprobado, no construido _(Albert, 2026-09-28)_
+
+Primero hacen falta los datos del portal.
+
+- **Tabla `cat_qua_vehiculos`**: AMIS, modelo (año), marca, línea, versión, `tipo_vehiculo` (vacío hasta que Qualitas confirme qué dato lo dice), `fuente` (`PORTAL_MANUAL` o `WSTARIFA`), fecha de la fuente, `submarca_id` del catálogo maestro cuando empate, y activo.
+- **Pantalla**: cuatro listas en cascada, marca → línea → año → versión, alimentadas por una ruta de consulta como la de GNP. Al elegir la versión se llena la AMIS, que sigue visible.
+- **Aviso**: mientras la fuente no sea `WSTARIFA`, la pantalla dice "Catálogo provisional (fuente, fecha): verifica la versión".
+- **Reemplazo sin rehacer la pantalla**: la carga de wsTarifa escribe en la misma tabla con `fuente = WSTARIFA` y la consulta prefiere esas filas; sólo desaparece el aviso.
+- **Cuando se confirme el dato de tipo** (`cCategoria` u otro), se llena `tipo_vehiculo`: el descuento deja de usar la fila Todos y se puede implementar el aviso de comisión anómala.
+- **De paso**, la cotización puede guardar `submarca_id`, que hoy va vacío.
+
+#### Plan de pruebas con 8 vehículos _(aprobado por Albert, 2026-09-28)_
+
+| # | Tipo | Vehículo | Descuento |
+|---|---|---|---|
+| 1 | Auto | Nissan Versa 2025 | 55 |
+| 2 | Auto | Chevrolet Aveo 2025 | 55 |
+| 3 | Pick-up | Toyota Hilux 2025, cabina doble | 55 |
+| 4 | Pick-up | RAM 700 2025 | 55 |
+| 5 | **Camión** | **Isuzu ELF 400 2025** (primera comisión de camión vista en el servicio) | 30 |
+| 6 | Camión | Hino Serie 300 2025 | 30 |
+| 7 | Moto | Italika FT150 2025 | 20 |
+| 8 | Moto | Honda CB190R 2025 | 20 |
+
+- **Condiciones comunes**: CP 11590, Ciudad de México, contado, pronto pago 14 días, Amplia.
+- **Cómo se captura**: Albert cotiza cada uno en el portal y llena **`plantilla_captura_portal.csv`**, en esta misma carpeta. Es una fila por vehículo, ya prellenada, con:
+  - AMIS, marca, línea, versión exacta, año, uso y descuento;
+  - cada cobertura con su suma y deducible;
+  - prima neta, TASA FIN. P.F., GTOS.EXPED.POL., subtotal, IVA, total, y la comisión si el portal la muestra.
+- **Después**, con esa AMIS se cotiza por el servicio (llamadas autorizadas por Albert) y se compara, igual que en la Etapa 6.
+
+**Hallazgo: las sumas de las coberturas varían por tipo de vehículo** `[PENDIENTE: confirmar con el portal]`.
+- El ejemplo de Qualitas de la Vento (moto) manda Gastos Médicos 100,000; el módulo manda 250,000 fijo, sacado del ejemplo de la Captiva.
+- Si el portal lo confirma, **las sumas por omisión deberán depender del tipo de vehículo**, igual que el tope de descuento.
+- Los camiones pueden pedir además datos que el módulo no manda (tonelaje, remolques, tipo de carga) o rechazar coberturas de auto como la 47. La prueba lo va a decir.
+
+#### Consideración 40 (SEPOMEX): primera parte hecha _(Claude, 2026-09-28)_
+
+- **`QualitasXml`** agrega `<ConsideracionesAdicionalesDA NoConsideracion="40">` con `TipoRegla` 7 (municipio) y 8 (colonia) después de `<Agrupador/>`, sólo cuando vienen los dos códigos. Sin ellos, el XML sale idéntico al de antes (`0f1aafe`).
+- **10 pruebas sin red** en `prueba_sin_red.php`, sección 7: con y sin la consideración, los 3 ejemplos idénticos, y el candado que sigue bloqueando `TipoMovimiento` 3 y 4.
+- **`llamada_qa.php`** tiene el subcomando `cotizar-captiva-cp40 --municipio=NNN --colonia=NNNN`.
+- **Tabla futura: `ref_sepomex`**. `ref_` significa catálogo nacional, no de una compañía; quedó anotado en ADR-003. **No se ha creado.**
+- **Falta**:
+  - que Albert descargue el archivo de SEPOMEX en `Proyectos\Qualitas_Cotizador\SEPOMEX\`;
+  - leer ahí los códigos del CP 11590;
+  - las 2 llamadas autorizadas, `cotizar-captiva` y `cotizar-captiva-cp40`, seguidas y en la misma sesión.
+
 ### Etapa 4 — adaptador, resultado común y descuento configurable _(Claude, 2026-09-28)_
 
 | Archivo | Qué hace |

@@ -1,0 +1,9 @@
+﻿num,tipo_vehiculo,vehiculo_sugerido,amis,marca,linea,version_exacta,anio,uso,servicio,cp,estado,paquete,forma_pago,descuento_pct,pronto_pago_dias,dm_suma,dm_deducible,rt_suma,rt_deducible,rc_suma,rc_deducible,gm_suma,mc_suma,gl_suma,av_suma,rc_complementaria_suma,rc_carga_suma,otras_coberturas,prima_neta,tasa_fin_pf,gtos_exped_pol,subtotal,iva,importe_total,comision_pct,comision_importe,tarifa_aplicada,numero_cotizacion_portal,fecha_cotizacion,notas
+1,Auto,"Nissan Versa 2025",,,,,2025,Normal,Particular,11590,"9 Ciudad de México",Amplia,Contado,55,14,,,,,,,,,,,,,,,,,,,,,,,,,
+2,Auto,"Chevrolet Aveo 2025",,,,,2025,Normal,Particular,11590,"9 Ciudad de México",Amplia,Contado,55,14,,,,,,,,,,,,,,,,,,,,,,,,,
+3,Pick-up,"Toyota Hilux 2025 cabina doble",,,,,2025,"Normal o Carga (anotar)",Particular,11590,"9 Ciudad de México",Amplia,Contado,55,14,,,,,,,,,,,,,,,,,,,,,,,,,
+4,Pick-up,"RAM 700 2025",,,,,2025,"Normal o Carga (anotar)",Particular,11590,"9 Ciudad de México",Amplia,Contado,55,14,,,,,,,,,,,,,,,,,,,,,,,,,
+5,Camión,"Isuzu ELF 400 2025",,,,,2025,"Carga (anotar tipo de carga y toneladas)",Particular,11590,"9 Ciudad de México",Amplia,Contado,30,14,,,,,,,,,,,,,,,,,,,,,,,,,
+6,Camión,"Hino Serie 300 2025",,,,,2025,"Carga (anotar tipo de carga y toneladas)",Particular,11590,"9 Ciudad de México",Amplia,Contado,30,14,,,,,,,,,,,,,,,,,,,,,,,,,
+7,Moto,"Italika FT150 2025",,,,,2025,Normal,Particular,11590,"9 Ciudad de México",Amplia,Contado,20,14,,,,,,,,,,,,,,,,,,,,,,,,,
+8,Moto,"Honda CB190R 2025",,,,,2025,Normal,Particular,11590,"9 Ciudad de México",Amplia,Contado,20,14,,,,,,,,,,,,,,,,,,,,,,,,,

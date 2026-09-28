@@ -33,6 +33,7 @@ Prefijo que dice de un vistazo qué es cada cosa:
 - **`cat_*`** — espejo de los catálogos de GNP
 - **`cot_*`** — cotizaciones y sus resultados
 - **`sys_*`** — usuarios y bitácora de llamadas
+- **`ref_*`** — catálogos **nacionales** de referencia, que no son de ninguna compañía (por ejemplo `ref_sepomex`, códigos postales, municipios y colonias de Correos de México). _(Albert, 2026-09-28)_ Se agregó para no confundirlos con `cat_*`, que sin sufijo significa GNP. Todavía no existe ninguna tabla `ref_*`; la primera será `ref_sepomex`, para la consideración 40 de Qualitas (`docs/aseguradoras/qualitas/00-estado.md`).
 
 > _(CC, 2026-09-25)_ — **Convención de prefijos para la plataforma de cotizadores por aseguradora** ([ADR-009](../01_Generales/ADR-009-plataforma-de-cotizadores-por-aseguradora.md) / [ADR-010](./ADR-010-contrato-comun-de-modulos-por-aseguradora.md) punto 6): el prefijo `cat_` sin sufijo de compañía significa **GNP, por historia** — las tablas existentes no se renombran. Las aseguradoras nuevas usan su propio prefijo: `cat_hdi_*`, `cat_qua_*`, `cat_zur_*`. `cot_*` y `sys_*` no se dividen por compañía: ya llevan la columna `aseguradora TEXT NOT NULL DEFAULT 'GNP'` (agregada el 25-sep-2026), porque una cotización siempre es de una sola compañía y no hace falta una tabla aparte para distinguirlas.
 
