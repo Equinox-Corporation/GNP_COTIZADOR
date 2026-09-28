@@ -4,7 +4,7 @@ Documento operativo. Última revisión: _(Claude, 2026-09-28)_.
 
 **Estado en la plataforma:** `EN_INTEGRACION` desde el 2026-09-28 (decisión de Albert). Hay cliente con candado de emisión doble y una cotización real en QA que cuadra con el PDF de ejemplo (`sys_llamadas.id` 123). El cambio lo hace una migración idempotente en `Esquema::migrar()`, que sólo mueve a Qualitas desde `PREPARADA`. Se probó contra una copia de la base y después contra la real (respaldo `datos/cotizador_gnp.sqlite.bak_pre_en_integracion_20260928_110452`): sólo cambió la fila de Qualitas, y GNP quedó igual (40 cotizaciones, 118 llamadas).
 
-Sigue faltando el usuario del catálogo (`cUsuario`/`cTarifa`) y la confirmación de que el negocio 08902 está dado de alta en producción. Pasa a `OPERATIVA` sólo con la lista del punto 12 de ADR-010 completa.
+Sigue faltando el usuario del catálogo (`cUsuario`/`cTarifa`). El negocio 08902 está en el **ambiente de pruebas de Qualitas**: una vez validado en QA, hay que **solicitar su liberación** (correo de Qualitas, "Indicaciones Qualitas.pdf"). Pasa a `OPERATIVA` sólo con la lista del punto 12 de ADR-010 completa.
 
 _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando existiera el cliente con su candado de emisión (ADR-010, punto 4) y se hubiera hecho la primera llamada a QA con respuesta real.
 
@@ -126,13 +126,30 @@ PRIMA NETA − PRONTO PAGO (2%) + GASTOS EXP.  = SUBTOTAL   ;  SUBTOTAL × 16%  
 - Las primas por cobertura del PDF **no suman la prima neta** (Captiva: suman 17,844.35 contra 8,440.28). El descuento se aplica en algún punto que el documento no explica. No se usa la suma de coberturas como precio.
 - Los XML de ejemplo no son la petición exacta de esos PDF (sus fechas son 29-ago/30-sep y los PDF dicen 23-sep). Sirven como modelo, no como par byte a byte.
 
+## Correo de Qualitas: "Indicaciones Qualitas.pdf" _(recibido por Albert; anotado el 2026-09-28)_
+
+En la carpeta `Proyectos\Qualitas_Cotizador\`. Acompaña la matriz del negocio, las cotizaciones de ejemplo y los XML.
+
+1. **El negocio 08902 está en el ambiente de pruebas.** Texto de Qualitas: "una vez validado, favor de solicitar su liberación".
+   - Deja de ser una pregunta y pasa a ser un **paso del plan**: validar en QA → solicitar la liberación.
+   - **No trae `cUsuario`/`cTarifa`**: el catálogo de vehículos sigue bloqueado.
+2. **Consideración 40 para la tarifa por CP**, en `DatosAsegurado`, además del código postal:
+   - `NoConsideracion="40"`, `TipoRegla` **7** → código de **municipio** del domicilio legal;
+   - `NoConsideracion="40"`, `TipoRegla` **8** → código de **colonia** del domicilio legal.
+
+   Los valores salen del catálogo de SEPOMEX (Correos de México). La plantilla de emisión (`XMLDoc_EjemploCamposEmision_CP.xml`) muestra la forma exacta: `<ConsideracionesAdicionalesDA NoConsideracion="40">` después de `<Agrupador/>`, con los `TipoRegla` 1 a 8. Del 1 al 6 son datos de identificación del cliente, que sólo aplican a emisión.
+
+   **Hoy no se mandan.** No se ha comprobado si cambian el precio: los 15/15 contra los PDF de Qualitas salieron sin ellas `[PENDIENTE]`.
+3. **Dato:** "en el ambiente de producción deben cotizar para cuadrar costos y la emisión como impresión de póliza deben realizarla en desarrollo".
+   - No cambia nada: este sistema no emite ni imprime pólizas.
+   - **No se cotiza en producción hasta que el negocio esté liberado.**
 ## Pendientes con Qualitas
 
 Lo que **sólo Qualitas puede resolver**. Todavía no se les escribe (Albert, 2026-09-28): primero se agotan las pruebas de nuestro lado. Lo que resolvamos nosotros sale de esta lista y queda anotado abajo, en "Resuelto de nuestro lado".
 
 **Bloquean el paso a `OPERATIVA`:**
 
-- [ ] Confirmar que el negocio **08902** con agente **0008810** está habilitado en **producción**. En QA ya cotiza (id 123).
+- ~~Confirmar que el negocio 08902 está habilitado en producción~~ → **ya no es pregunta**: Qualitas informó que está en el **ambiente de pruebas** y que, una vez validado, hay que solicitar su liberación ("Indicaciones Qualitas.pdf"). Pasa a ser un paso del plan; ver "Lista para pasar a `OPERATIVA`".
 - [ ] Cómo se autentica `WsEmision` en **producción**: ¿sólo negocio + agente, o también registro de IP? En QA bastó con negocio + agente (id 123).
 - [ ] **Usuario (`cUsuario`) y clave de tarifa (`cTarifa`)** de `wsTarifa` (catálogo de vehículos). También: namespace del servicio y si existe URL de pruebas.
 - [ ] ¿Hay URL **https** de producción para `WsEmision` y `wsTarifa`? El manual sólo da `http`.
@@ -432,7 +449,8 @@ En producción cada llamada cuenta. Lo medido antes del cambio, sobre una copia 
 - [x] **"Ver otras formas de pago"** con su propio token: tras una falla no reintenta sin que el usuario lo decida (`64b7e95`).
 - [ ] **Prueba de A y B en el navegador contra QA** (Albert): hasta 4 llamadas autorizadas.
 - [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo (aviso de comisión anómala, pendiente de la Etapa 3).
-- [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
+- [ ] **Liberación del negocio 08902**: validar en QA → **solicitar a Qualitas la liberación** del negocio (hoy está en su ambiente de pruebas). Hasta entonces no se cotiza en producción.
+- [ ] **Consideración 40 (municipio y colonia SEPOMEX)** en `DatosAsegurado`, que Qualitas pide para la tarifa por CP. Hoy no se manda. Diagnóstico y propuesta entregados a Albert el 2026-09-28, pendientes de decisión.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
 - [ ] **Producción va por `http` sin cifrar** según el manual. Preguntar a Qualitas si hay `https` antes de mandar datos reales.
 - [ ] **Menú para todos los usuarios:** al pasar a `OPERATIVA`, Qualitas sale del bloque "en preparación" de los administradores y hoy no hay enlace para los demás. Hay que darle un lugar en `layout.php` antes del cambio de estado.
