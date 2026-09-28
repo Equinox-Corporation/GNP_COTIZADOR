@@ -21,7 +21,7 @@ define('BASE_URL', rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] 
 foreach (['core/Esquema', 'core/Db', 'core/Auth', 'core/GnpClient', 'core/PdfBasico',
           'plataforma/CotizadorAseguradora', 'plataforma/Resultado', 'plataforma/Aseguradoras', 'plataforma/CandadoEmision',
           'aseguradoras/Gnp/AseguradoraGnp',
-          'plataforma/RangoDescuento',
+          'plataforma/RangoDescuento', 'plataforma/SolicitudUnica',
           'aseguradoras/Qualitas/QualitasXml', 'aseguradoras/Qualitas/QualitasClient',
           'aseguradoras/Qualitas/AseguradoraQualitas', 'aseguradoras/Qualitas/QualitasServicio',
           'servicios/CatalogoServicio', 'servicios/CotizacionServicio', 'servicios/ImpresionServicio',
@@ -147,6 +147,8 @@ function qualitasContexto(string $error, array $previo): array
         'deducibles' => $modulo->deduciblesElegibles(),
         'rango'      => RangoDescuento::resolver(Db::get(), 'QUALITAS', RangoDescuento::TODOS),
         'estadoAseg' => estadoQualitas(),
+        // Token de un solo uso: cada formulario mostrado lleva uno nuevo (SolicitudUnica).
+        'solicitud'  => SolicitudUnica::emitir(Db::get(), Auth::id(), 'QUALITAS', 'cotizar'),
     ];
 }
 
@@ -882,26 +884,19 @@ switch ($ruta) {
             vista('qualitas_cotizar', qualitasContexto('La sesión expiró. Vuelve a enviar el formulario.', $_POST));
             exit;
         }
-        $usoQ = (string) ($_POST['uso'] ?? '1');
-        $rQ = QualitasServicio::cotizar([
-            'clave_vehiculo'       => trim((string) ($_POST['clave_vehiculo'] ?? '')),
-            'modelo'               => trim((string) ($_POST['modelo'] ?? '')),
-            'conductor_cp'         => trim((string) ($_POST['conductor_cp'] ?? '')),
-            'estado'               => (string) ($_POST['estado'] ?? ''),
-            'uso'                  => isset(AseguradoraQualitas::USOS[$usoQ]) ? $usoQ : '1',
-            'servicio'             => '1',
-            'porcentaje_descuento' => trim((string) ($_POST['porcentaje_descuento'] ?? '')),
-            'paquetes'             => array_map('intval', (array) ($_POST['paquetes'] ?? [])),
-            'deducibles'           => array_map('strval', (array) ($_POST['deducibles'] ?? [])),
-            'tipo_carga'           => $usoQ === '6' ? (string) ($_POST['tipo_carga'] ?? '') : '',
-            'descripcion_carga'    => $usoQ === '6' ? (string) ($_POST['descripcion_carga'] ?? '') : '',
-        ], Auth::id());
-        if (!$rQ['ok'] && !isset($rQ['cotizacion_id'])) {
-            // No salió nada: se vuelve al formulario con lo capturado.
-            vista('qualitas_cotizar', qualitasContexto($rQ['mensaje'], $_POST));
+        // Sólo el primer envío de cada formulario llama a Qualitas (SolicitudUnica):
+        // doble clic, reenvío tras "atrás" o una pestaña duplicada no repiten llamadas.
+        $rQ = QualitasServicio::cotizarDesdeFormulario($_POST, Auth::id());
+        if ($rQ['accion'] === 'FORMULARIO') {
+            // No salió nada: se vuelve al formulario con lo capturado y un token nuevo.
+            vista('qualitas_cotizar', qualitasContexto($rQ['error'], $_POST));
             exit;
         }
-        redirigir('qualitas/resultado', array_filter(['id' => $rQ['cotizacion_id'], 'aviso' => $rQ['mensaje']]));
+        if ($rQ['accion'] === 'PROCESANDO') {
+            vista('qualitas_procesando', []);
+            exit;
+        }
+        redirigir('qualitas/resultado', array_filter(['id' => $rQ['cotizacion_id'], 'aviso' => $rQ['aviso'] ?? '']));
 
     case 'qualitas/resultado':
         accesoQualitas(false);

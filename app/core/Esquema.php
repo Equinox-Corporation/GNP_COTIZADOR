@@ -502,6 +502,25 @@ SQL);
         self::migrarCatalogoQualitas($pdo);
         self::migrarPresentacionQualitas($pdo);
 
+        // 28-sep-2026: token de un solo uso por formulario (SolicitudUnica,
+        // decisión de Albert): un doble clic o un reenvío no repite llamadas.
+        // Tabla nueva, sólo agregar. La limpia SolicitudUnica::limpiar() y
+        // nunca toca las cotizaciones.
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS sys_solicitudes (
+    token          TEXT    PRIMARY KEY,
+    usuario_id     INTEGER NULL,
+    aseguradora    TEXT    NOT NULL,
+    accion         TEXT    NOT NULL,
+    estado         TEXT    NOT NULL,               -- EMITIDO | EN_CURSO | TERMINADA | FALLIDA | RECHAZADA
+    cotizacion_id  INTEGER NULL,
+    creada_en      TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+    usada_en       TEXT    NULL,
+    vence_en       TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_solicitudes_creada ON sys_solicitudes (creada_en);
+SQL);
+
         // v_cotizaciones necesita la columna aseguradora para poder filtrar el
         // historial por compañía (ADR-010 punto 6 de la Fase 1). CREATE VIEW
         // IF NOT EXISTS de arriba no toca una vista que ya existe, así que en

@@ -120,6 +120,79 @@ final class QualitasServicio
         return ['ok' => true, 'cotizacion_id' => $cotId, 'mensaje' => implode(' ', $avisos)];
     }
 
+    /** Captura de la pantalla de Qualitas a partir del POST (lo que antes armaba la ruta). */
+    public static function capturaDesdePost(array $post): array
+    {
+        $uso = (string) ($post['uso'] ?? '1');
+        return [
+            'clave_vehiculo'       => trim((string) ($post['clave_vehiculo'] ?? '')),
+            'modelo'               => trim((string) ($post['modelo'] ?? '')),
+            'conductor_cp'         => trim((string) ($post['conductor_cp'] ?? '')),
+            'estado'               => (string) ($post['estado'] ?? ''),
+            'uso'                  => isset(AseguradoraQualitas::USOS[$uso]) ? $uso : '1',
+            'servicio'             => '1',
+            'porcentaje_descuento' => trim((string) ($post['porcentaje_descuento'] ?? '')),
+            'paquetes'             => array_map('intval', (array) ($post['paquetes'] ?? [])),
+            'deducibles'           => array_map('strval', (array) ($post['deducibles'] ?? [])),
+            'tipo_carga'           => $uso === '6' ? (string) ($post['tipo_carga'] ?? '') : '',
+            'descripcion_carga'    => $uso === '6' ? (string) ($post['descripcion_carga'] ?? '') : '',
+        ];
+    }
+
+    /**
+     * "Cotizar" desde el formulario, con token de un solo uso (SolicitudUnica).
+     * Sólo el primer envío de cada formulario llama a Qualitas.
+     *
+     * @return array{accion:'REDIRIGIR'|'FORMULARIO'|'PROCESANDO', cotizacion_id?:int, aviso?:string, error?:string}
+     */
+    public static function cotizarDesdeFormulario(array $post, ?int $usuarioId, ?AseguradoraQualitas $modulo = null): array
+    {
+        $pdo = Db::get();
+        $token = (string) ($post['solicitud'] ?? '');
+        $t = SolicitudUnica::tomar($pdo, $token, $usuarioId, 'QUALITAS', 'cotizar');
+
+        switch ($t['resultado']) {
+            case SolicitudUnica::OK:
+                try {
+                    $r = self::cotizar(self::capturaDesdePost($post), $usuarioId, $modulo);
+                } catch (Throwable $e) {
+                    SolicitudUnica::cerrar($pdo, $token, SolicitudUnica::FALLIDA, null);
+                    throw $e;
+                }
+                if (!$r['ok'] && !isset($r['cotizacion_id'])) {
+                    // Error de captura: no salió nada. El formulario vuelve con un token nuevo.
+                    SolicitudUnica::cerrar($pdo, $token, SolicitudUnica::RECHAZADA, null);
+                    return ['accion' => 'FORMULARIO', 'error' => $r['mensaje']];
+                }
+                SolicitudUnica::cerrar($pdo, $token, $r['ok'] ? SolicitudUnica::TERMINADA : SolicitudUnica::FALLIDA, (int) $r['cotizacion_id']);
+                return ['accion' => 'REDIRIGIR', 'cotizacion_id' => (int) $r['cotizacion_id'], 'aviso' => $r['mensaje']];
+
+            case SolicitudUnica::TERMINADA:
+                return ['accion' => 'REDIRIGIR', 'cotizacion_id' => (int) $t['cotizacion_id'], 'aviso' => 'Esta cotización ya se había enviado.'];
+
+            case SolicitudUnica::FALLIDA:
+                $msg = 'Esta cotización ya se había enviado y no se completó. Para intentarlo de nuevo, abre el formulario otra vez.';
+                return $t['cotizacion_id'] !== null
+                    ? ['accion' => 'REDIRIGIR', 'cotizacion_id' => (int) $t['cotizacion_id'], 'aviso' => $msg]
+                    : ['accion' => 'FORMULARIO', 'error' => $msg];
+
+            case SolicitudUnica::EN_CURSO:
+                return ['accion' => 'PROCESANDO'];
+
+            case SolicitudUnica::RECHAZADA:
+                return ['accion' => 'FORMULARIO', 'error' => 'Este formulario ya se había enviado y los datos no pasaron la revisión. Revísalos y vuelve a enviar.'];
+
+            case SolicitudUnica::INTERRUMPIDA:
+                return ['accion' => 'FORMULARIO', 'error' => 'La cotización anterior de este formulario se interrumpió. Revisa el historial antes de volver a cotizar.'];
+
+            case SolicitudUnica::VENCIDO:
+                return ['accion' => 'FORMULARIO', 'error' => 'El formulario venció (vale ' . (SolicitudUnica::VIGENCIA_MINUTOS / 60) . ' horas). Revisa los datos y vuelve a enviar.'];
+
+            default:
+                return ['accion' => 'FORMULARIO', 'error' => 'El formulario no es válido para tu sesión. Revisa los datos y vuelve a enviar.'];
+        }
+    }
+
     /**
      * "Ver otras formas de pago": cotiza el MISMO paquete en semestral,
      * trimestral o mensual, sólo cuando el usuario lo pide. Cada forma es su

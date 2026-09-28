@@ -32,6 +32,7 @@ $ambiente = strtoupper(Env::get('QUALITAS_AMBIENTE', 'QA'));
 
 <form method="post" action="<?= h(url('qualitas/cotizar')) ?>" id="form-qualitas" autocomplete="off">
   <input type="hidden" name="_t" value="<?= h(Auth::token()) ?>">
+  <input type="hidden" name="solicitud" value="<?= h($solicitud) ?>">
 
   <section class="tarjeta">
     <h2>Vehículo</h2>
