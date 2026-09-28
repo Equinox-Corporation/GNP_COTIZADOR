@@ -261,6 +261,7 @@ Las coberturas (`cat_qua_coberturas`) salen del Anexo 5 (S/N/AD/O) y del juego d
 **Cambios en lo compartido:**
 
 - **`layout.php`: un solo cambio**, el enlace "Descuentos" dentro del bloque de administradores. El nombre "Qualitas (en preparación)" del menú sigue sin ser enlace; al cotizador se entra desde "Descuentos".
+- **`layout.php`, segundo cambio (Albert, 2026-09-28):** en el bloque de administradores, "Qualitas (en preparación)" pasa a ser enlace a `?r=qualitas`; HDI y Zurich siguen como texto. Regresión con 16 pantallas × 2 usuarios, contra la versión anterior al cambio, con copias verificadas por `verificar_copia_sin_red.php`: mismos códigos HTTP. Ignorando la sangría, la única diferencia en el HTML del admin es ese `<span>` que pasa a `<a>`; el no-admin ve el HTML idéntico y recibe 403 en `?r=qualitas` y `?r=descuentos`. Cero errores PHP. **Pendiente:** cuando Qualitas pase a `OPERATIVA`, sale de este bloque (que sólo lista las que no cotizan) y habrá que darle un lugar en el menú para todos.
 - `public/index.php`, además de las rutas nuevas, lleva tres guardas:
   1. `resultado` manda las cotizaciones de Qualitas a `qualitas/resultado`. La pantalla de GNP tiene un botón de imprimir que llama a GNP.
   2. `imprimir` rechaza toda cotización que no sea de GNP. Sin esta guarda, `ImpresionServicio` habría llamado a **GNP producción** con el folio de Qualitas.

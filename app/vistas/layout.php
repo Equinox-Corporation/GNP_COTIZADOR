@@ -39,7 +39,11 @@
           );
         ?>
         <?php foreach ($enPreparacion as $a): ?>
-          <span class="en-preparacion" title="<?= h($a['nombre']) ?> — en preparación"><?= h($a['nombre']) ?> <small>(en preparación)</small></span>
+          <?php if ($a['clave'] === 'QUALITAS'): ?>
+            <a href="<?= h(url('qualitas')) ?>" class="en-preparacion<?= str_starts_with((string) ($ruta ?? ''), 'qualitas') ? ' activo' : '' ?>" title="<?= h($a['nombre']) ?> — en preparación"><?= h($a['nombre']) ?> <small>(en preparación)</small></a>
+          <?php else: ?>
+            <span class="en-preparacion" title="<?= h($a['nombre']) ?> — en preparación"><?= h($a['nombre']) ?> <small>(en preparación)</small></span>
+          <?php endif; ?>
         <?php endforeach; ?>
       <?php endif; ?>
     </nav>
