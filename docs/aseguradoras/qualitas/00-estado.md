@@ -175,6 +175,7 @@ Lo que **sólo Qualitas puede resolver**. Todavía no se les escribe (Albert, 20
 1. **Descuento capturado por el usuario.** La pantalla tiene un campo de porcentaje; lo que el usuario escribe es lo que se manda en `PorcentajeDescuento`.
    - **Rango mínimo y máximo configurable** por aseguradora y tipo de vehículo, en una tabla común de la plataforma (`sys_descuentos`) que el administrador edita desde pantalla. Sirve para cualquier compañía que reciba el descuento en la petición. Valores iniciales de Qualitas: mínimo 0; máximo 55 autos/pick-up, 30 camiones, 20 motos.
    - **La agrupación del descuento no es la de la comisión** (Albert, 2026-09-28). Para el **tope de descuento**, el formulario del negocio pone pick-up con **autos** (55). Para la **comisión**, pick-up cuenta como **camión** (8.8; "Reglas verificadas", punto 7). En `sys_descuentos`, pick-up es un tipo propio (`PICKUP`) con 0–55, nunca 0–30. `prueba_etapa4_sin_red.php` falla si la semilla deja a pick-up con el tope de camiones.
+   - **Pendiente de validación de negocio, para revisión a detalle** (Albert, 2026-09-28): pick-up cuenta como camión para la comisión (8.8), pero el formulario del negocio lo agrupa con autos para el tope de descuento (55). **No está resuelto.** Por ahora queda como está (0–55, con su prueba); Albert lo va a validar con Operaciones o con Qualitas.
    - El usuario no puede salir del rango: se valida en pantalla y en servidor. Por qué: Qualitas rechaza fuera de rango (error 7) y conviene que el usuario lo vea antes de gastar una llamada.
    - Mientras no se sepa qué dato del catálogo dice si es auto, camión o moto `[PENDIENTE]`, se usa la fila "TODOS" de la aseguradora (0–55) y el rechazo de Qualitas cae en `DATOS` con su mensaje.
    - GNP no recibe descuento en la petición: no se le conecta.
@@ -364,6 +365,9 @@ Caso real: cotización **1219401257** (ids 136–139). Las pruebas que lo cubren
 
 **Falta para `OPERATIVA`:**
 
+- [ ] **Descripción del vehículo para el cliente.** Hoy la pantalla y el PDF dicen "Clave AMIS 21191 · modelo 2026"; el cliente necesita marca, modelo y versión. Llega con el catálogo (Etapa 3).
+- [ ] **Validación de negocio de pick-up** (comisión como camión, descuento como auto): pendiente de Albert con Operaciones o con Qualitas.
+- [ ] **Descuento en el historial:** mostrarlo exige tocar la vista de historial de GNP. Pendiente de decisión.
 - [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo (aviso de comisión anómala, pendiente de la Etapa 3).
 - [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
