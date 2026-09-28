@@ -153,7 +153,6 @@ Lo que **sólo Qualitas puede resolver**. Todavía no se les escribe (Albert, 20
 
 ### Lo que todavía probamos nosotros (no se les pregunta)
 
-- Semestral, trimestral y mensual: la prueba de Albert desde la pantalla.
 - ¿Un envío acepta varios `<Movimiento>`, es decir, varios paquetes? Se puede probar con una llamada autorizada.
 - Una cotización de un camión que no sea pick-up, para ver su comisión.
 
@@ -162,6 +161,7 @@ Lo que **sólo Qualitas puede resolver**. Todavía no se les escribe (Albert, 20
 - Ejemplo de respuesta real, exitosa y con error: ids 123 y 126.
 - Qué trae `PrimaTotal`: incluye pronto pago, derechos e IVA; el pronto pago llega en `Recargo` (ids 123 y 127 a 129).
 - Desglose por forma de pago: la respuesta trae sólo la forma de pago pedida; hay que cotizar una por una (id 123).
+- Semestral, trimestral y mensual cotizadas desde la pantalla; semestral y trimestral iguales al PDF de Qualitas (ids 137–139).
 - Formato de `<CodigoError>`: id 126.
 - Tope de descuento de autos, 55: lo dice el propio servicio (id 126).
 
@@ -347,8 +347,6 @@ mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva
 - [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
 - [ ] **Producción va por `http` sin cifrar** según el manual. Preguntar a Qualitas si hay `https` antes de mandar datos reales.
-- [ ] **Una cotización de punta a punta desde la pantalla contra QA.** Las cuatro de la Etapa 6 salieron del script; la pantalla y `QualitasServicio` sólo se han probado con el transporte falso.
-- [ ] **Otras formas de pago** (semestral, trimestral, mensual): nunca se han cotizado contra el servicio.
 - [ ] **Menú para todos los usuarios:** al pasar a `OPERATIVA`, Qualitas sale del bloque "en preparación" de los administradores y hoy no hay enlace para los demás. Hay que darle un lugar en `layout.php` antes del cambio de estado.
 - [ ] Sin bloquear, pero pendientes: paquete Básica sin código; vigencia de 7 días sin confirmar; comisión de un camión que no sea pick-up sin ver en el servicio; los códigos `AUTH` y `SISTEMA` de la tabla de errores no se han visto llegar.
 ## Reglas verificadas contra el servicio de Qualitas
@@ -531,3 +529,42 @@ En la petición mandamos `SumaAsegurada` **0** para Gastos Legales (7) y Asisten
   - RC sigue mostrando $3,000,000, la suma cruda queda guardada y el precio no cambia.
   - Se comprobó que la prueba falla si Asistencia Vial vuelve a `MONTO`.
 - **Migración de una sola vez** (`Esquema::migrarPresentacionQualitas`): probada en una copia y aplicada a la base real, respaldo `bak_pre_qualitas_presentacion_20260928_133538`. Agregó la columna y una fila 31 por paquete, en Básica inerte porque está deshabilitada. Nada más cambió.
+
+### 15. Cotización de punta a punta desde la pantalla contra QA `[CONFIRMADO]` (ids 136–139; repetición 131–134)
+
+Albert cotizó en el navegador (`?r=qualitas`, Apache) la Captiva Amplia (AMIS 21191, 2026, CP 11590, estado 9, 55%). Folio **1219401257**, cotización 45. Después pulsó "Ver otras formas de pago".
+
+- **Contado (id 136): total 10,464.91, igual que la id 127.** Prima neta 8,440.28 · `Recargo` −168.81 · derecho 750 · IVA 1,443.44 · comisión 11 / 928.43.
+- Semestral (137), trimestral (138) y mensual (139) salieron cada una como su propia llamada, ligadas a la cotización 45.
+- En `sys_llamadas` hay además:
+  - una corrida idéntica, cotización 43, folio 1219400074, ids 131–134, **mismos importes al centavo**;
+  - una en `RED`, cotización 44, id 135: "Could not resolve host", no llegó a Qualitas.
+
+  En total, **8 llamadas llegaron a QA** contra las 4 autorizadas: el flujo se hizo dos veces.
+- La evidencia cruda de 136–139 se exportó de `sys_llamadas` a `evidencia/` (`*_pantalla_captiva_{C,S,T,M}_*`), porque las llamadas desde la pantalla no escriben archivos.
+
+### 16. Formas de pago `[CONFIRMADO]` (ids 136–139)
+
+| Forma | Llamada | Total | Recibos | Primer pago | Pagos siguientes | `Recargo` | Sobre contado | PDF de Qualitas |
+|---|---|---|---|---|---|---|---|---|
+| Contado | 136 | 10,464.91 | 1 | 10,464.91 | — | −168.81 | — | 10,464.91 ✓ |
+| Semestral | 137 | 10,895.71 | 2 | 5,882.85 | 5,012.86 | 202.57 | +4.1% | 5,882.85 / 5,012.86 ✓ |
+| Trimestral | 138 | 11,130.68 | 4 | 3,435.17 | 2,565.17 ×3 | 405.13 | +6.4% | 3,435.17 / 2,565.17 ✓ |
+| Mensual | 139 | 11,287.33 | 12 | 1,738.01 | 868.12 ×11 | 540.18 | +7.9% | sin referencia |
+
+- **Semestral y trimestral son iguales al PDF de Qualitas**; la mensual sólo se observó.
+- **La prima neta es la misma en las cuatro (8,440.28).** Lo que cambia es `Recargo`: en contado trae el pronto pago en negativo; en las fraccionadas llega positivo. No se sabe cómo se compone `[PENDIENTE]`.
+- **La aritmética de siempre se cumple en las cuatro**: prima neta + `Recargo` + 750, más 16% de IVA, da el total al centavo. Por ejemplo, en semestral: 9,392.85 + 1,502.86 = 10,895.71.
+- **El derecho de póliza va completo en el primer recibo**, con su IVA; los demás recibos traen derecho 0. En semestral, el IVA del recibo 1 (811.43) es el del recibo 2 (691.43) más el 16% de 750 (120.00).
+
+### 17. La comisión se trunca en cada recibo `[CONFIRMADO]` (ids 136–139)
+
+| Forma | Comisión por recibo | Suma de los recibos | Contado |
+|---|---|---|---|
+| Semestral | 464.21 × 2 | 928.42 | 928.43 |
+| Trimestral | 232.10 × 4 | 928.40 | 928.43 |
+| Mensual | 77.36 × 12 | 928.32 | 928.43 |
+
+- El porcentaje (`Primas/Comision`) es 11 en las cuatro.
+- Qualitas trunca la comisión de cada recibo, así que las sumas quedan unos centavos debajo de la de contado. Es otra razón para no calcularla nunca.
+- **La comisión de cada forma de pago es la suma de lo que devuelve Qualitas en los recibos de esa forma**, no la de contado.
