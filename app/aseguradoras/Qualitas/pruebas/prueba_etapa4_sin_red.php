@@ -223,6 +223,41 @@ $cat = $modulo->catalogo('MARCAS');
 ok($cat['estado'] === 'AUTH' && str_starts_with($cat['error']['descripcion'], 'Catálogo sin credenciales configuradas') && count($envios) === $antes, 'catalogo(): sin cUsuario/cTarifa responde AUTH, "catálogo sin credenciales configuradas", y no llama', $cat['error']['descripcion']);
 ok(!str_contains(strtolower($cat['error']['descripcion']), 'rechaz'), 'El mensaje no dice que las credenciales fueron rechazadas');
 
+// ─── 7. Error real de Qualitas (sys_llamadas.id 126) ───────────────────
+echo "\n7. Error de negocio REAL (id 126: descuento 60, \"0007-- Descuento fuera de Rango\")\n";
+// Se manda 55 (válido para el rango) y el transporte falso contesta con la
+// respuesta real del error: lo que se prueba es cómo se trata esa respuesta.
+$respuesta = file_get_contents(RUTA_BASE . '/docs/aseguradoras/qualitas/evidencia/20260928_121028_llamada-126_error_descuento_60_respuesta.xml');
+$textoQualitas = '0007-- Descuento fuera de Rango, rango valido 0 a 55';
+
+$r = $modulo->cotizar($sol());
+ok($r['estado'] === 'DATOS' && $r['paquetes'] === [], 'Adaptador: DATOS y ningún Resultado');
+ok(str_contains($r['error']['descripcion'], $textoQualitas), 'El texto de Qualitas llega tal cual', $r['error']['descripcion']);
+
+$cotAntes = (int) $pdo->query('SELECT COUNT(*) FROM cot_cotizaciones')->fetchColumn();
+$s = QualitasServicio::cotizar(['clave_vehiculo' => '21191', 'modelo' => '2026', 'conductor_cp' => '11590', 'estado' => '9', 'porcentaje_descuento' => '55', 'paquetes' => [$ids['Amplia']]], 1, $modulo);
+$cotErr = $pdo->query('SELECT * FROM cot_cotizaciones WHERE id = ' . (int) ($s['cotizacion_id'] ?? 0))->fetch(PDO::FETCH_ASSOC);
+ok(!$s['ok'] && $cotErr !== false && $cotErr['estado'] === 'ERROR' && str_contains((string) $cotErr['error_desc'], $textoQualitas), 'La cotización queda en ERROR con el mensaje de Qualitas');
+ok((int) $pdo->query('SELECT COUNT(*) FROM cot_resultados WHERE cotizacion_id = ' . (int) $cotErr['id'])->fetchColumn() === 0, 'cot_resultados: ningún renglón (ni el Derecho 750 como si fuera precio)');
+ok($cotErr['folio'] === null, 'Sin folio: el error no trae NoCotizacion');
+$vh = $pdo->query('SELECT desde, hasta, paquetes FROM v_cotizaciones WHERE id = ' . (int) $cotErr['id'])->fetch(PDO::FETCH_ASSOC);
+ok($vh['desde'] === null && $vh['hasta'] === null && (int) $vh['paquetes'] === 0, 'El historial no muestra precio (desde/hasta vacíos)');
+
+// La pantalla de resultado, renderizada sin servidor con las mismas funciones que public/index.php.
+if (!function_exists('h')) {
+    function h(mixed $v): string { return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+    function dinero(?float $n): string { return $n === null ? '—' : '$' . number_format($n, 2); }
+    function url(string $r, array $p = []): string { return '/?' . http_build_query(array_merge(['r' => $r], $p)); }
+}
+$vista = (static function (array $cot, array $datos, array $resultados, bool $vencida, string $aviso, bool $puedeCotizar): string {
+    ob_start();
+    require RUTA_APP . '/vistas/qualitas_resultado.php';
+    return (string) ob_get_clean();
+})($cotErr, json_decode((string) $cotErr['datos_aseguradora_json'], true) ?: [], [], false, '', true);
+ok(str_contains($vista, h($textoQualitas)), 'Pantalla: muestra el mensaje de Qualitas tal cual');
+ok(!str_contains($vista, 'class="precio"') && !str_contains($vista, '750'), 'Pantalla: ningún precio, ni el 750');
+$respuesta = $real;
+
 echo "\n───────────────────────────────────────────────────────────────────\n";
 echo $fallas === 0 ? " {$total} pruebas, todas bien.\n" : " {$fallas} de {$total} pruebas FALLARON.\n";
 exit($fallas === 0 ? 0 : 1);

@@ -191,7 +191,7 @@ Nada de esto ha hablado con Qualitas. Todo lo que diga de la respuesta es `[PEND
 - ~~Nombre del parámetro~~ → **`xmlEmision`** `[CONFIRMADO]` (sys_llamadas.id 122). `QUALITAS_WS_PARAMETRO=xmlEmision`.
 - ~~`SOAPAction`~~ → `http://qualitas.com.mx/obtenerNuevaEmision` `[CONFIRMADO]` (id 122, 123).
 - ~~Forma de la respuesta~~ → XML escapado como texto `[CONFIRMADO]` (id 123). El cliente sigue aceptando las dos formas.
-- **Formato de `<CodigoError>`.** La categoría la decide el número al inicio del texto (`"0310--…"` → 310). Sin número al inicio → `SISTEMA`, con el texto tal cual.
+- ~~Formato de `<CodigoError>`~~ → código a 4 dígitos con ceros, `--` y el texto `[CONFIRMADO]` (id 126). El parseo lo lee bien (clave 7) y no se cambió. Sin número al inicio → `SISTEMA`, con el texto tal cual.
 - **Namespace de `wsTarifa`** (`QUALITAS_TARIFAS_NS`), no documentado. El parámetro `cCategoría` viene con acento en el manual; se manda `cCategoria`.
 - **`TipoRegla`** se manda `0` como en los ejemplos (el manual dice "vacío").
 - **Consideración 39** (`blindado|asistencia vial plus`): por omisión `N|S`, como los tres ejemplos.
@@ -292,7 +292,7 @@ Cuatro cotizaciones en QA:
 - las 3 de "Ejemplos Qualitas": Captiva y NP300 con 55%, Vento con 20%, pronto pago 14;
 - **una de Limitada (código 3) con la Captiva**, para confirmar el paquete (Albert, 2026-09-28).
 
-También está pendiente la llamada de error con descuento de 60% (ids 124 y 125 no salieron del equipo).
+La llamada de error con descuento de 60% ya se hizo: la corrió Albert desde su terminal (id 126, ver "Reglas verificadas", punto 11).
 
 ## Reglas verificadas contra el servicio de Qualitas
 
@@ -308,6 +308,7 @@ Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, c
 | 123 | `obtenerNuevaEmision`, Captiva 2026, AMIS 21191, CP 11590, Estado 9, Amplia, descuento 55, pronto pago 14 | **OK**, `NoCotizacion` 1219390564, 1,265 ms |
 | 124 | Misma Captiva con `PorcentajeDescuento=60`, para ver el formato de un error (autorizada por Albert el 2026-09-28; se esperaba el error 7) | `RED`: "Could not resolve host". **No llegó a Qualitas.** Windows sí resolvía el nombre, pero el PHP de la sesión no, desde ninguna de las dos terminales. Por la instrucción de no reintentar, no se repitió. El formato de `<CodigoError>` sigue `[PENDIENTE]` |
 | 125 | La misma llamada que la 124, repetida una sola vez desde PowerShell por indicación de Albert (la 124 no había salido, así que no cuenta como reintento) | `RED`: "Could not resolve host" otra vez. **No llegó a Qualitas.** Queda para que Albert la corra desde su terminal: `C:
+| 126 | La misma llamada, **corrida por Albert desde su terminal** | `DATOS`, HTTP 200, 1,484 ms. `<CodigoError>0007-- Descuento fuera de Rango, rango valido 0 a 55</CodigoError>`. Ver punto 11 |
 mppphpphp.exe appseguradorasQualitaspruebasllamada_qa.php error-descuento-60 --autorizado` |
 
 ### 1. El servicio en QA sólo tiene `obtenerNuevaEmision` `[CONFIRMADO]` (id 122, 121)
@@ -322,7 +323,7 @@ El WSDL de QA no publica `Test`, `HolamundoAux`, `EnviaMail` ni `obtenerNuevaEmi
 
 ### 3. Éxito = `<CodigoError/>` vacío `[CONFIRMADO]` (id 123)
 
-La cotización exitosa trae `<CodigoError/>` vacío y HTTP 200. Todavía no se ha visto un error de negocio, así que el formato de `<CodigoError>` con error sigue `[PENDIENTE]`.
+La cotización exitosa trae `<CodigoError/>` vacío y HTTP 200. El error de negocio también llega con HTTP 200 (id 126, punto 11).
 
 ### 4. La respuesta regresa el movimiento completo, con datos cambiados `[CONFIRMADO]` (id 123)
 
@@ -390,3 +391,13 @@ Cada `<Coberturas>` trae su `<Prima>`, y suman 17,844.35 contra una prima neta d
 ### 10. Lo que la respuesta no trae
 
 La vigencia de la cotización (7 días en el PDF) no viene en la respuesta. Sigue `[PENDIENTE]`.
+
+### 11. Error de negocio: formato y trato `[CONFIRMADO]` (id 126)
+
+Captiva 2026 con `PorcentajeDescuento=60` (el tope del negocio es 55), corrida por Albert el 2026-09-28.
+
+- **Formato de `<CodigoError>`** `[CONFIRMADO]`: código a **4 dígitos con ceros**, `--` y el texto. Aquí: `0007-- Descuento fuera de Rango, rango valido 0 a 55`. El parseo actual lo lee bien (clave `7`, estado `DATOS`, mensaje intacto) y **no se cambió**. Coincide con el formato del catálogo (`0310--…`, `0340--…`).
+- **Error de negocio con HTTP 200** `[CONFIRMADO]`: el éxito lo decide `<CodigoError>`, no el código HTTP. Es la misma regla que GNP ([ADR-005, punto 5](../../03_Decisiones/ADR-005-reglas-verificadas-gnp.md)).
+- **Tope de descuento de autos: 55** `[CONFIRMADO]`: lo dice el propio servicio ("rango valido 0 a 55"). La semilla de `sys_descuentos` para autos (0–55) queda respaldada por el servicio. Camiones (30) y motos (20) siguen respaldados **sólo por el formulario del negocio**.
+- **Con error, Qualitas devuelve el `Derecho` que se le mandó (750) y el resto de las primas vacías**: sin `NoCotizacion`, sin coberturas y sin recibos. El 750 no es un precio. `prueba_etapa4_sin_red.php` (sección 7) usa esta respuesta real y comprueba que no se guarda ningún renglón en `cot_resultados`, que el historial no muestra precio y que la pantalla muestra el mensaje tal cual, sin precio. Ya se comportaba así; sólo se agregó la prueba.
+- Otras diferencias contra la respuesta exitosa (id 123), sólo anotadas: `TipoEndoso` regresó `6` (antes `21`), `Moneda` `1` (se mandó `0`) y `Plazo` `1` (se mandó vacío).
