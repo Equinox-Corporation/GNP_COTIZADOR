@@ -164,7 +164,7 @@ PRIMA NETA − PRONTO PAGO (2%) + GASTOS EXP.  = SUBTOTAL   ;  SUBTOTAL × 16%  
    - GNP no recibe descuento en la petición: no se le conecta.
    - El porcentaje usado se guarda en `datos_aseguradora_json` de la cotización, para que el historial explique el precio.
 2. **La comisión se muestra al usuario.** "Bajo su control": hoy el único control documentado es el **descuento**. No hay campo documentado para ceder o ajustar comisión; el error 179 ("La cesión de comisiones es mayor a la comisión") indica que el mecanismo existe, pero no cómo se manda `[PENDIENTE — preguntar a Qualitas]`. Tampoco está documentado si el descuento reduce la comisión `[PENDIENTE]`. El módulo muestra la comisión que devuelva Qualitas junto al precio y no la inventa ni la calcula.
-   - _(Albert, 2026-09-28)_ `Primas/Comision` es el **porcentaje** (11 en autos) y `Recibos/Comision` el **importe**. Se muestran los dos, tal como lleguen, y lo que falte dice "no disponible". Detalle en "Reglas verificadas", punto 7.
+   - _(Albert, 2026-09-28)_ `Primas/Comision` es el **porcentaje** (autos 11, motos 11, pick-up 8.8, camiones 8.8; camiones aún sin ver en el servicio) y `Recibos/Comision` el **importe**. Se muestran los dos, tal como lleguen, y lo que falte dice "no disponible". Detalle en "Reglas verificadas", punto 7.
 3. **Pronto pago se aplica**: consideración 05 con 14 días (máximo permitido, error 192). Valor desde configuración.
 
 ## Avance del módulo
@@ -379,23 +379,39 @@ Impuesto = 16% × (8,440.28 − 168.81 + 750.00) = 1,443.4352 → 1,443.44  ✓
 
 Con la consideración 05 = 14 días, `Recargo` = **−168.81** = −2% de la prima neta (−168.8056). No hay campo propio para el pronto pago: viene mezclado en `Recargo`, que el manual describe como "recargo por forma de pago fraccionada". Con una forma de pago fraccionada, `Recargo` podría traer las dos cosas juntas `[PENDIENTE]`.
 
-### 7. Dónde viene la comisión `[CONFIRMADO dónde viene]` (id 123) · qué significa: **confirmado por negocio (Albert, 2026-09-28)**
+### 7. Comisión: dónde viene y cuánto es por tipo de vehículo `[CONFIRMADO dónde viene]` (ids 123, 127–130) · qué significa y los porcentajes: **confirmado por negocio (Albert, 2026-09-28)**
 
-Lo que se vio en el servicio (id 123):
+**Qué significa cada campo**, confirmado por negocio (Albert, 2026-09-28). No es una confirmación del servicio: el manual dice que `Primas/Comision` es "la comisión total".
 
-- `<Primas><Comision>` = **11**.
-- `<Recibos><Comision>` = **928.43**.
-- Aritmética: 8,440.28 × 11% = 928.4308 → 928.43. El importe del recibo es exactamente el 11% de la prima neta **antes** del pronto pago.
-
-Qué significa cada uno, **confirmado por negocio (Albert, 2026-09-28)**. No es una confirmación del servicio: el manual dice que `Primas/Comision` es "la comisión total".
-
-- `Primas/Comision` es el **porcentaje** de comisión, exclusivo de **automóviles**.
+- `Primas/Comision` es el **porcentaje** de comisión.
 - `Recibos/Comision` es el **importe**.
 
-Cómo se usa (Etapa 4 y 5):
+**Porcentaje por tipo de vehículo:**
+
+| Tipo | Confirmado por negocio (Albert, 2026-09-28) | Visto en el servicio | Llamada | Prima neta | `Recibos/Comision` |
+|---|---|---|---|---|---|
+| Auto | 11 | **11** `[CONFIRMADO]` | 123, 127 (Captiva, Amplia) | 8,440.28 | 928.43 |
+| Auto | 11 | **11** `[CONFIRMADO]` | 130 (Captiva, Limitada) | 4,801.43 | 528.15 |
+| Moto | 11 | **11** `[CONFIRMADO]` | 129 (Vento) | 6,234.08 | 685.74 |
+| Pick-up | 8.8 | **8.8** `[CONFIRMADO]` | 128 (NP300, uso carga) | 14,710.43 | 1,294.51 |
+| Camión | 8.8 | sin observar: ninguna cotización de camión todavía | — | — | — |
+
+Camiones queda **confirmado por negocio, pendiente de ver en el servicio**.
+
+**Importe = porcentaje × prima neta** (antes del pronto pago) en las cinco respuestas, **truncado a centavos, no redondeado**:
+
+- 928.4308 → 928.43
+- 528.1573 → 528.15
+- 685.7488 → 685.74
+- 1,294.5178 → 1,294.51 (redondeado habría sido 1,294.52)
+
+Es otra razón para no calcularlo nunca.
+
+**Cómo se usa (Etapas 4 y 5; las reglas no cambian):**
 
 - **Al usuario se le muestran los dos**, porcentaje e importe, tal como vengan en cada respuesta. No se calculan ni se derivan: ni el importe a partir del porcentaje, ni al revés.
-- **El 11% es sólo de automóviles.** Nunca se asume 11 para otro tipo de vehículo. Para pick-up, camiones y motos el porcentaje sigue `[PENDIENTE]` hasta verlo en una respuesta real. La NP300 y la Vento de la Etapa 6 lo van a mostrar.
+- **Nunca se asume el porcentaje por tipo de vehículo.** La tabla sirve para **detectar anomalías, no para llenar huecos**.
+- **Si una respuesta trae un porcentaje distinto al esperado para su tipo**, se muestra tal cual y se anota un aviso en la bitácora.
 - **Si no llega el porcentaje o el importe, se muestra "no disponible"**, nunca un valor por omisión.
 
 ### 8. Formas de pago: una por llamada `[CONFIRMADO para contado · PENDIENTE las demás]` (id 123)
