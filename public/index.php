@@ -900,7 +900,7 @@ switch ($ruta) {
 
     case 'qualitas/resultado':
         accesoQualitas(false);
-        $ctxQ = QualitasServicio::contextoResultado((int) ($_GET['id'] ?? 0));
+        $ctxQ = QualitasServicio::contextoResultado((int) ($_GET['id'] ?? 0), Auth::id());
         if ($ctxQ === null) {
             http_response_code(404);
             exit('Cotización de Qualitas no encontrada.');
@@ -918,17 +918,12 @@ switch ($ruta) {
         if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
             redirigir('historial');
         }
-        $idResQ = (int) ($_POST['resultado_id'] ?? 0);
-        $cotIdQ = (int) Db::valor("SELECT cotizacion_id FROM cot_resultados WHERE id = ? AND aseguradora = 'QUALITAS'", [$idResQ]);
-        $msgsQ = [];
-        foreach (['S', 'T', 'M'] as $formaQ) {
-            $fQ = QualitasServicio::otraFormaDePago($idResQ, $formaQ);
-            $msgsQ[] = $fQ['ok'] ? $fQ['mensaje'] : AseguradoraQualitas::FORMAS_PAGO[$formaQ] . ': ' . $fQ['mensaje'];
-            if (!$fQ['ok'] && str_contains($fQ['mensaje'], 'venció')) {
-                break;
-            }
+        // Sólo el primer envío de cada botón llama a Qualitas (SolicitudUnica).
+        $fpQ = QualitasServicio::formasPagoDesdeFormulario($_POST, Auth::id());
+        if ($fpQ === null) {
+            redirigir('historial');
         }
-        redirigir('qualitas/resultado', ['id' => $cotIdQ, 'aviso' => implode(' ', $msgsQ)]);
+        redirigir('qualitas/resultado', ['id' => $fpQ['cotizacion_id'], 'aviso' => $fpQ['aviso']]);
 
     // PDF propio (Qualitas no imprime cotizaciones). Se arma al vuelo.
     case 'qualitas/pdf':

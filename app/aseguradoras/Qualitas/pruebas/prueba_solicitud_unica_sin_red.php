@@ -55,23 +55,34 @@ function ok(bool $cond, string $que, string $detalle = ''): void
 }
 
 $pdo = Db::get();
-$real = file_get_contents(glob(RUTA_BASE . '/docs/aseguradoras/qualitas/evidencia/*llamada-136_pantalla_captiva_C_respuesta.xml')[0]);
+$evid = RUTA_BASE . '/docs/aseguradoras/qualitas/evidencia/';
+$real = file_get_contents(glob($evid . '*llamada-136_pantalla_captiva_C_respuesta.xml')[0]);
+// Respuestas REALES por forma de pago (ids 136–139), para "Ver otras formas de pago".
+$porForma = ['C' => $real];
+foreach (['S' => 137, 'T' => 138, 'M' => 139] as $fp => $idLl) {
+    $porForma[$fp] = file_get_contents(glob($evid . "*llamada-{$idLl}_pantalla_captiva_{$fp}_respuesta.xml")[0]);
+}
 
 // Transporte falso que cuenta. $alLlamar permite simular algo que ocurre
 // MIENTRAS la primera petición espera a Qualitas (por ejemplo, otra pestaña).
 $llamadas = 0;
 $modoRed = false;
+$fallan = [];            // formas de pago que responden "sin red" (p. ej. ['T', 'M'])
+$porFormaLlamadas = [];  // cuántas llamadas hubo de cada forma
 $alLlamar = null;
-$transporte = static function () use (&$llamadas, &$modoRed, &$alLlamar, $real): array {
+$transporte = static function (string $url, string $cuerpo) use (&$llamadas, &$modoRed, &$fallan, &$porFormaLlamadas, &$alLlamar, $porForma): array {
     $llamadas++;
+    preg_match('#&lt;FormaPago&gt;([CSTM])&lt;/FormaPago&gt;#', $cuerpo, $m);
+    $fp = $m[1] ?? 'C';
+    $porFormaLlamadas[$fp] = ($porFormaLlamadas[$fp] ?? 0) + 1;
     if ($alLlamar !== null) {
         $f = $alLlamar;
         $alLlamar = null;
         $f();
     }
-    return $modoRed
+    return ($modoRed || in_array($fp, $fallan, true))
         ? ['http' => 0, 'cuerpo' => '', 'errno' => 7, 'error' => 'SIMULADO: sin red']
-        : ['http' => 200, 'cuerpo' => $real, 'errno' => 0, 'error' => ''];
+        : ['http' => 200, 'cuerpo' => $porForma[$fp], 'errno' => 0, 'error' => ''];
 };
 $config = [
     'ambiente' => 'QA', 'url_emision' => 'https://qa.prueba.invalid/WsEmision/WsEmision.asmx', 'parametro_emision' => 'xmlEmision',
@@ -241,12 +252,69 @@ ok($borradas === 3 && (int) $pdo->query('SELECT COUNT(*) FROM sys_solicitudes')-
 ok((int) $pdo->query("SELECT COUNT(*) FROM sys_solicitudes WHERE token = '{$recienVencido}'")->fetchColumn() === 1, 'Un formulario vencido hace una hora se conserva (todavía responde "venció")');
 ok($cuantas() === $cotAntes && (int) $pdo->query('SELECT COUNT(*) FROM cot_resultados')->fetchColumn() === $resAntes, 'Las cotizaciones y sus resultados no se tocan');
 
+echo "\n13. \"Ver otras formas de pago\": su propio token (misma regla que Cotizar)\n";
+/** Una cotización de contado ya hecha y el token del botón, como lo arma la pantalla de resultado. */
+$cotizacionConBoton = static function () use ($emitir, $enviar, $post): array {
+    $r = $enviar($post($emitir()));
+    $ctx = QualitasServicio::contextoResultado((int) $r['cotizacion_id'], 7);
+    return [(int) $ctx['resultados'][0]['id'], (string) $ctx['resultados'][0]['solicitud_formas'], (int) $r['cotizacion_id']];
+};
+$formas = static fn (int $resId, string $token, int $usuario = 7): ?array
+    => QualitasServicio::formasPagoDesdeFormulario(['resultado_id' => $resId, 'solicitud' => $token], $usuario, $modulo);
+$guardadas = static fn (int $resId): array => array_keys((array) (json_decode((string) $pdo->query("SELECT conceptos_json FROM cot_resultados WHERE id = {$resId}")->fetchColumn(), true)['formas_pago'] ?? []));
+
+[$res13, $tok13, $cot13] = $cotizacionConBoton();
+ok(preg_match('/^[0-9a-f]{32}$/', $tok13) === 1, 'La pantalla de resultado le da al botón su propio token');
+$caso('formas-doble', static function () use ($formas, $res13, $tok13, $cot13, &$llamadas, $guardadas): void {
+    $antes = $llamadas;
+    $a = $formas($res13, $tok13);
+    $b = $formas($res13, $tok13);
+    ok($llamadas - $antes === 3, 'Doble envío: 3 llamadas en total (S, T y M), no 6', 'llamadas: ' . ($llamadas - $antes));
+    ok($a['cotizacion_id'] === $cot13 && $b['aviso'] === 'Las otras formas de pago ya se habían pedido.', 'El segundo envío: 0 llamadas, "ya se habían pedido"');
+    ok($guardadas($res13) === ['S', 'T', 'M'], 'Quedaron guardadas S, T y M');
+});
+
+[$res14, $tok14] = $cotizacionConBoton();
+$caso('formas-falla', static function () use ($formas, $res14, $tok14, &$llamadas, &$fallan, $pdo, $guardadas): void {
+    $fallan = ['T', 'M'];                    // semestral sale bien; trimestral y mensual, sin red
+    $antes = $llamadas;
+    $formas($res14, $tok14);
+    ok($llamadas - $antes === 3 && $guardadas($res14) === ['S'], 'Primer envío con falla: 3 llamadas; sólo semestral quedó guardada');
+    ok($pdo->query("SELECT estado FROM sys_solicitudes WHERE token = '{$tok14}'")->fetchColumn() === 'FALLIDA', 'El token del botón queda FALLIDA');
+    $fallan = [];
+    $antes = $llamadas;
+    $r = $formas($res14, $tok14);
+    ok($llamadas === $antes && str_contains($r['aviso'], 'recarga la página y pulsa otra vez'), 'Reenvío tras la falla: 0 llamadas, "recarga la página y pulsa otra vez"');
+});
+
+$caso('formas-nuevo', static function () use ($formas, $res14, &$llamadas, &$porFormaLlamadas, $guardadas): void {
+    // Recargar el resultado = botón nuevo con token nuevo.
+    $ctx = QualitasServicio::contextoResultado((int) Db::valor('SELECT cotizacion_id FROM cot_resultados WHERE id = ?', [$res14]), 7);
+    $nuevo = (string) $ctx['resultados'][0]['solicitud_formas'];
+    $antesPorForma = $porFormaLlamadas;
+    $antes = $llamadas;
+    $formas($res14, $nuevo);
+    $delta = [];
+    foreach (['S', 'T', 'M'] as $fp) {
+        $delta[$fp] = ($porFormaLlamadas[$fp] ?? 0) - ($antesPorForma[$fp] ?? 0);
+    }
+    ok($llamadas - $antes === 2 && $delta === ['S' => 0, 'T' => 1, 'M' => 1], 'Botón nuevo tras la falla: reintenta sólo las que faltan (T y M: 2 llamadas; S: 0)', json_encode($delta));
+    ok($guardadas($res14) === ['S', 'T', 'M'], 'Ahora están las tres');
+});
+
+ok(QualitasServicio::contextoResultado((int) Db::valor('SELECT cotizacion_id FROM cot_resultados WHERE id = ?', [$res13]), 7)['resultados'][0]['solicitud_formas'] === '', 'Con S, T y M ya cotizadas no se emite token (no hay botón)');
+[$res15, $tok15] = $cotizacionConBoton();
+$antes = $llamadas;
+ok($formas($res15, $tok15, $OTRO)['aviso'] === 'Este botón ya no es válido. Recarga la página y pulsa otra vez.' && $llamadas === $antes, 'Token del botón con otro usuario: 0 llamadas');
+ok($formas($res13, $tok15)['aviso'] === 'Este botón ya no es válido. Recarga la página y pulsa otra vez.' && $llamadas === $antes, 'Token del botón de otro resultado: 0 llamadas');
+
 echo "\n12. A: el botón se bloquea al enviar (revisión del código de las vistas)\n";
 $vCot = file_get_contents(RUTA_APP . '/vistas/qualitas_cotizar.php');
 $vRes = file_get_contents(RUTA_APP . '/vistas/qualitas_resultado.php');
 ok(str_contains($vCot, 'name="solicitud" value="<?= h($solicitud) ?>"'), 'El formulario de cotizar manda su token');
 ok(str_contains($vCot, "btn.disabled = true") && str_contains($vCot, "'Cotizando…'") && str_contains($vCot, "'pageshow'"), '"Cotizar": se bloquea al enviar y se rehabilita al volver');
 ok(str_contains($vRes, 'class="form-un-envio"') && str_contains($vRes, "btn.disabled = true") && str_contains($vRes, "'pageshow'"), '"Ver otras formas de pago": igual');
+ok(str_contains($vRes, 'name="solicitud" value="<?= h((string) ($r[\'solicitud_formas\'] ?? \'\')) ?>"'), '"Ver otras formas de pago" manda su token');
 
 echo "\n───────────────────────────────────────────────────────────────────\n";
 echo "Llamadas totales a Qualitas en toda la prueba: {$llamadas}\n";

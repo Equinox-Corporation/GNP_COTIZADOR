@@ -26,7 +26,7 @@ define('RUTA_APP', RUTA_BASE . '/app');
 define('BASE_URL', '');
 
 foreach (['core/Env', 'core/Esquema', 'core/Db', 'core/PdfBasico',
-          'plataforma/CotizadorAseguradora', 'plataforma/Resultado', 'plataforma/CandadoEmision', 'plataforma/RangoDescuento',
+          'plataforma/CotizadorAseguradora', 'plataforma/Resultado', 'plataforma/CandadoEmision', 'plataforma/RangoDescuento', 'plataforma/SolicitudUnica',
           'aseguradoras/Qualitas/QualitasXml', 'aseguradoras/Qualitas/QualitasClient',
           'aseguradoras/Qualitas/AseguradoraQualitas', 'aseguradoras/Qualitas/QualitasServicio'] as $c) {
     require RUTA_APP . '/' . $c . '.php';

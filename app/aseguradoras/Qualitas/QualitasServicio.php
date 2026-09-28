@@ -278,18 +278,91 @@ final class QualitasServicio
      *
      * @return array{cot:array, datosAseg:array, resultados:array, vencida:bool}|null
      */
-    public static function contextoResultado(int $cotId): ?array
+    public static function contextoResultado(int $cotId, ?int $usuarioId = null): ?array
     {
         $cot = Db::uno("SELECT * FROM cot_cotizaciones WHERE id = ? AND aseguradora = 'QUALITAS'", [$cotId]);
         if ($cot === null) {
             return null;
         }
+        $vencida = !empty($cot['vence_en']) && $cot['vence_en'] < date('Y-m-d');
+        $resultados = self::resultados($cotId);
+
+        // Cada botón "Ver otras formas de pago" que se muestra lleva su propio
+        // token de un solo uso, ligado a su resultado (SolicitudUnica).
+        foreach ($resultados as &$r) {
+            $faltan = array_diff(['S', 'T', 'M'], array_keys((array) ($r['conceptos']['formas_pago'] ?? [])));
+            $r['solicitud_formas'] = ($faltan !== [] && !$vencida)
+                ? SolicitudUnica::emitir(Db::get(), $usuarioId, 'QUALITAS', self::accionFormasPago((int) $r['id']))
+                : '';
+        }
+        unset($r);
+
         return [
             'cot'        => $cot,
             'datosAseg'  => json_decode((string) $cot['datos_aseguradora_json'], true) ?: [],
-            'resultados' => self::resultados($cotId),
-            'vencida'    => !empty($cot['vence_en']) && $cot['vence_en'] < date('Y-m-d'),
+            'resultados' => $resultados,
+            'vencida'    => $vencida,
         ];
+    }
+
+    /** La acción del token de "Ver otras formas de pago" incluye el resultado: un token no sirve para otro. */
+    public static function accionFormasPago(int $resultadoId): string
+    {
+        return 'formas_pago:' . $resultadoId;
+    }
+
+    /**
+     * "Ver otras formas de pago" desde el botón, con token de un solo uso.
+     * Misma regla que "Cotizar": sólo el primer envío de cada botón llama; si
+     * falló, el reenvío no reintenta: el usuario recarga el resultado (botón
+     * nuevo) y pulsa otra vez, y entonces sólo se cotizan las formas que faltan.
+     *
+     * @return array{cotizacion_id:int, aviso:string}|null  null si el resultado no existe
+     */
+    public static function formasPagoDesdeFormulario(array $post, ?int $usuarioId, ?AseguradoraQualitas $modulo = null): ?array
+    {
+        $pdo = Db::get();
+        $resultadoId = (int) ($post['resultado_id'] ?? 0);
+        $cotId = Db::valor("SELECT cotizacion_id FROM cot_resultados WHERE id = ? AND aseguradora = 'QUALITAS'", [$resultadoId]);
+        if ($cotId === null) {
+            return null;
+        }
+        $cotId = (int) $cotId;
+        $token = (string) ($post['solicitud'] ?? '');
+        $t = SolicitudUnica::tomar($pdo, $token, $usuarioId, 'QUALITAS', self::accionFormasPago($resultadoId));
+
+        switch ($t['resultado']) {
+            case SolicitudUnica::OK:
+                $mensajes = [];
+                $todoBien = true;
+                try {
+                    foreach (['S', 'T', 'M'] as $forma) {
+                        $f = self::otraFormaDePago($resultadoId, $forma, $modulo);
+                        $todoBien = $todoBien && $f['ok'];
+                        $mensajes[] = $f['ok'] ? $f['mensaje'] : AseguradoraQualitas::FORMAS_PAGO[$forma] . ': ' . $f['mensaje'];
+                        if (!$f['ok'] && str_contains($f['mensaje'], 'venció')) {
+                            break;
+                        }
+                    }
+                } catch (Throwable $e) {
+                    SolicitudUnica::cerrar($pdo, $token, SolicitudUnica::FALLIDA, $cotId);
+                    throw $e;
+                }
+                SolicitudUnica::cerrar($pdo, $token, $todoBien ? SolicitudUnica::TERMINADA : SolicitudUnica::FALLIDA, $cotId);
+                return ['cotizacion_id' => $cotId, 'aviso' => implode(' ', $mensajes)];
+
+            case SolicitudUnica::TERMINADA:
+                return ['cotizacion_id' => $cotId, 'aviso' => 'Las otras formas de pago ya se habían pedido.'];
+
+            case SolicitudUnica::FALLIDA:
+                return ['cotizacion_id' => $cotId, 'aviso' => 'Este botón ya se había usado y alguna forma de pago no se completó. Para intentarlo de nuevo, recarga la página y pulsa otra vez.'];
+
+            case SolicitudUnica::EN_CURSO:
+                return ['cotizacion_id' => $cotId, 'aviso' => 'Las otras formas de pago se están cotizando. Recarga la página en unos segundos.'];
+
+            default:
+                return ['cotizacion_id' => $cotId, 'aviso' => 'Este botón ya no es válido. Recarga la página y pulsa otra vez.'];
+        }
     }
 
     /** Resultados de una cotización de Qualitas, de más barato a más caro, con conceptos y coberturas. */

@@ -102,6 +102,7 @@ $descuento = isset($datosAseg['porcentaje_descuento']) ? (int) $datosAseg['porce
         <form method="post" action="<?= h(url('qualitas/formas-pago')) ?>" class="form-un-envio">
           <input type="hidden" name="_t" value="<?= h(Auth::token()) ?>">
           <input type="hidden" name="resultado_id" value="<?= (int) $r['id'] ?>">
+          <input type="hidden" name="solicitud" value="<?= h((string) ($r['solicitud_formas'] ?? '')) ?>">
           <button class="btn" data-texto="Ver otras formas de pago">Ver otras formas de pago</button>
           <span class="ayuda">Cotiza semestral, trimestral y mensual: una llamada a Qualitas por cada una.</span>
         </form>
