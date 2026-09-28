@@ -29,6 +29,7 @@
       <?php if (Auth::esAdmin()): ?>
         <a href="<?= h(url('usuarios')) ?>"<?= ($ruta ?? '') === 'usuarios' ? ' class="activo"' : '' ?>>Usuarios</a>
         <a href="<?= h(url('plantillas')) ?>"<?= ($ruta ?? '') === 'plantillas' ? ' class="activo"' : '' ?>>Paquetes propios</a>
+        <a href="<?= h(url('descuentos')) ?>"<?= ($ruta ?? '') === 'descuentos' ? ' class="activo"' : '' ?>>Descuentos</a>
         <?php
           // Menú armado desde sys_aseguradoras (ADR-010 punto 2): sólo
           // administradores ven las que aún no cotizan, con su leyenda.

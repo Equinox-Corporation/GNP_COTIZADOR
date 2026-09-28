@@ -112,6 +112,59 @@ function coberturasDesdePost(array $post): array
     return $coberturas;
 }
 
+/** Estado de Qualitas en sys_aseguradoras (PREPARADA, EN_INTEGRACION, OPERATIVA, SUSPENDIDA). */
+function estadoQualitas(): string
+{
+    return (string) Db::valor("SELECT estado FROM sys_aseguradoras WHERE clave = 'QUALITAS'");
+}
+
+/**
+ * Quién entra a las pantallas de Qualitas (ADR-010 punto 2): mientras no esté
+ * OPERATIVA, sólo administradores. SUSPENDIDA: nadie cotiza, el historial
+ * sigue visible.
+ */
+function accesoQualitas(bool $paraCotizar): void
+{
+    $estado = estadoQualitas();
+    if ($paraCotizar && $estado === Aseguradoras::SUSPENDIDA) {
+        http_response_code(403);
+        exit('Qualitas está suspendida: no se puede cotizar.');
+    }
+    if ($estado === Aseguradoras::OPERATIVA || ($estado === Aseguradoras::SUSPENDIDA && !$paraCotizar)) {
+        return;
+    }
+    Auth::exigirAdmin();
+}
+
+/** Contexto de la pantalla de captura de Qualitas. */
+function qualitasContexto(string $error, array $previo): array
+{
+    $modulo = new AseguradoraQualitas();
+    return [
+        'error'      => $error,
+        'previo'     => $previo,
+        'paquetes'   => $modulo->paquetes(),
+        'deducibles' => $modulo->deduciblesElegibles(),
+        'rango'      => RangoDescuento::resolver(Db::get(), 'QUALITAS', RangoDescuento::TODOS),
+        'estadoAseg' => estadoQualitas(),
+    ];
+}
+
+/** Resultados de una cotización de Qualitas, de más barato a más caro, con sus coberturas. */
+function qualitasResultados(int $cotId): array
+{
+    $filas = Db::todos(
+        "SELECT * FROM cot_resultados WHERE cotizacion_id = ? AND aseguradora = 'QUALITAS' ORDER BY total_pagar IS NULL, total_pagar",
+        [$cotId]
+    );
+    foreach ($filas as &$f) {
+        $f['conceptos']  = json_decode((string) $f['conceptos_json'], true) ?: [];
+        $f['coberturas'] = Db::todos('SELECT * FROM cot_resultado_coberturas WHERE resultado_id = ? ORDER BY orden', [(int) $f['id']]);
+    }
+    unset($f);
+    return $filas;
+}
+
 Auth::iniciarSesion();
 
 try {
@@ -357,6 +410,11 @@ switch ($ruta) {
             http_response_code(404);
             exit('Cotización no encontrada.');
         }
+        // Una cotización de Qualitas tiene su propia pantalla: ésta es de GNP
+        // (su botón de imprimir llama al servicio de GNP).
+        if (($cot['aseguradora'] ?? 'GNP') === 'QUALITAS') {
+            redirigir('qualitas/resultado', array_filter(['id' => $id, 'aviso' => (string) ($_GET['aviso'] ?? '')]));
+        }
         vista('resultado', [
             'cot'         => $cot,
             'resultados'  => CotizacionServicio::resultados($id),
@@ -372,6 +430,11 @@ switch ($ruta) {
         }
         $id  = (int) ($_POST['id'] ?? 0);
         $cve = (string) ($_POST['cve'] ?? '');
+        // Candado: el servicio de impresión de GNP nunca recibe una cotización
+        // de otra compañía (con el folio de Qualitas llamaría a GNP producción).
+        if ((CotizacionServicio::obtener($id)['aseguradora'] ?? 'GNP') !== 'GNP') {
+            redirigir('resultado', ['id' => $id, 'aviso' => 'Esta cotización no es de GNP: su PDF se genera desde su propia pantalla.']);
+        }
         $r   = ImpresionServicio::generar($id, $cve);
         redirigir('resultado', ['id' => $id, 'aviso' => $r['ok'] ? 'PDF generado.' : $r['mensaje']]);
 
@@ -422,10 +485,24 @@ switch ($ruta) {
 
     case 'historial':
         $aseguradoraFiltro = (string) ($_GET['aseguradora'] ?? '');
+        $visiblesHist = Aseguradoras::visiblesPara(Db::get(), Auth::esAdmin());
+        // Un no administrador no ve cotizaciones de compañías que todavía no
+        // cotizan (PREPARADA, EN_INTEGRACION). Las OPERATIVAS y las SUSPENDIDAS
+        // sí: "el historial sigue visible" (ADR-010 punto 2). GNP es OPERATIVA:
+        // sus filas no cambian.
+        $estadosHist = array_column(Aseguradoras::todas(Db::get()), 'estado', 'clave');
+        $filasHist = array_values(array_filter(
+            CotizacionServicio::historial(50, $aseguradoraFiltro),
+            static fn (array $f): bool => Auth::esAdmin() || in_array(
+                $estadosHist[$f['aseguradora'] ?? 'GNP'] ?? '',
+                [Aseguradoras::OPERATIVA, Aseguradoras::SUSPENDIDA],
+                true
+            )
+        ));
         vista('historial', [
-            'filas'       => CotizacionServicio::historial(50, $aseguradoraFiltro),
+            'filas'       => $filasHist,
             'aseguradora' => $aseguradoraFiltro,
-            'aseguradoras' => Aseguradoras::visiblesPara(Db::get(), Auth::esAdmin()),
+            'aseguradoras' => $visiblesHist,
         ]);
         exit;
 
@@ -802,6 +879,103 @@ switch ($ruta) {
         // Reabre el armador sobre la plantilla recién creada: misma combinación,
         // ahora ya guardada — así se puede seguir cotizando con ella de una vez.
         redirigir('armador', ['plantilla_id' => $rGuardarArm['id'], 'ok' => 'Plantilla guardada como "' . (string) ($_POST['nombre_nueva_plantilla'] ?? '') . '".']);
+
+    // ─── Qualitas (ADR-010, docs/aseguradoras/qualitas/00-estado.md) ────────
+    // Mientras Qualitas no esté OPERATIVA, sólo administradores. Sin catálogo
+    // de vehículos todavía: la clave AMIS y el modelo se capturan a mano.
+    case 'qualitas':
+        accesoQualitas(true);
+        vista('qualitas_cotizar', qualitasContexto('', []));
+        exit;
+
+    case 'qualitas/cotizar':
+        accesoQualitas(true);
+        if (!$post) {
+            redirigir('qualitas');
+        }
+        if (!Auth::tokenValido($_POST['_t'] ?? null)) {
+            vista('qualitas_cotizar', qualitasContexto('La sesión expiró. Vuelve a enviar el formulario.', $_POST));
+            exit;
+        }
+        $usoQ = (string) ($_POST['uso'] ?? '1');
+        $rQ = QualitasServicio::cotizar([
+            'clave_vehiculo'       => trim((string) ($_POST['clave_vehiculo'] ?? '')),
+            'modelo'               => trim((string) ($_POST['modelo'] ?? '')),
+            'conductor_cp'         => trim((string) ($_POST['conductor_cp'] ?? '')),
+            'estado'               => (string) ($_POST['estado'] ?? ''),
+            'uso'                  => isset(AseguradoraQualitas::USOS[$usoQ]) ? $usoQ : '1',
+            'servicio'             => '1',
+            'porcentaje_descuento' => trim((string) ($_POST['porcentaje_descuento'] ?? '')),
+            'paquetes'             => array_map('intval', (array) ($_POST['paquetes'] ?? [])),
+            'deducibles'           => array_map('strval', (array) ($_POST['deducibles'] ?? [])),
+            'tipo_carga'           => $usoQ === '6' ? (string) ($_POST['tipo_carga'] ?? '') : '',
+            'descripcion_carga'    => $usoQ === '6' ? (string) ($_POST['descripcion_carga'] ?? '') : '',
+        ], Auth::id());
+        if (!$rQ['ok'] && !isset($rQ['cotizacion_id'])) {
+            // No salió nada: se vuelve al formulario con lo capturado.
+            vista('qualitas_cotizar', qualitasContexto($rQ['mensaje'], $_POST));
+            exit;
+        }
+        redirigir('qualitas/resultado', array_filter(['id' => $rQ['cotizacion_id'], 'aviso' => $rQ['mensaje']]));
+
+    case 'qualitas/resultado':
+        accesoQualitas(false);
+        $idQ  = (int) ($_GET['id'] ?? 0);
+        $cotQ = CotizacionServicio::obtener($idQ);
+        if ($cotQ === null || ($cotQ['aseguradora'] ?? '') !== 'QUALITAS') {
+            http_response_code(404);
+            exit('Cotización de Qualitas no encontrada.');
+        }
+        vista('qualitas_resultado', [
+            'cot'        => $cotQ,
+            'datos'      => json_decode((string) $cotQ['datos_aseguradora_json'], true) ?: [],
+            'resultados' => qualitasResultados($idQ),
+            'vencida'    => CotizacionServicio::vencida($cotQ),
+            'aviso'      => (string) ($_GET['aviso'] ?? ''),
+            'puedeCotizar' => estadoQualitas() !== Aseguradoras::SUSPENDIDA,
+        ]);
+        exit;
+
+    // "Ver otras formas de pago": semestral, trimestral y mensual, sólo cuando
+    // el usuario lo pide. Cada una es su propia llamada registrada.
+    case 'qualitas/formas-pago':
+        accesoQualitas(true);
+        if (!$post || !Auth::tokenValido($_POST['_t'] ?? null)) {
+            redirigir('historial');
+        }
+        $idResQ = (int) ($_POST['resultado_id'] ?? 0);
+        $cotIdQ = (int) Db::valor("SELECT cotizacion_id FROM cot_resultados WHERE id = ? AND aseguradora = 'QUALITAS'", [$idResQ]);
+        $msgsQ = [];
+        foreach (['S', 'T', 'M'] as $formaQ) {
+            $fQ = QualitasServicio::otraFormaDePago($idResQ, $formaQ);
+            $msgsQ[] = $fQ['ok'] ? $fQ['mensaje'] : AseguradoraQualitas::FORMAS_PAGO[$formaQ] . ': ' . $fQ['mensaje'];
+            if (!$fQ['ok'] && str_contains($fQ['mensaje'], 'venció')) {
+                break;
+            }
+        }
+        redirigir('qualitas/resultado', ['id' => $cotIdQ, 'aviso' => implode(' ', $msgsQ)]);
+
+    // PDF propio (Qualitas no imprime cotizaciones). Se arma al vuelo.
+    case 'qualitas/pdf':
+        accesoQualitas(false);
+        $idResQ = (int) ($_GET['resultado_id'] ?? 0);
+        $resQ = Db::uno("SELECT * FROM cot_resultados WHERE id = ? AND aseguradora = 'QUALITAS'", [$idResQ]);
+        $cotQ = $resQ !== null ? CotizacionServicio::obtener((int) $resQ['cotizacion_id']) : null;
+        if ($resQ === null || $cotQ === null) {
+            http_response_code(404);
+            exit('Resultado de Qualitas no encontrado.');
+        }
+        $pdfQ = (new AseguradoraQualitas())->imprimir(
+            $cotQ + ['datos_aseguradora' => json_decode((string) $cotQ['datos_aseguradora_json'], true) ?: []],
+            $resQ + [
+                'conceptos'  => json_decode((string) $resQ['conceptos_json'], true) ?: [],
+                'coberturas' => Db::todos('SELECT nombre, suma_asegurada, deducible FROM cot_resultado_coberturas WHERE resultado_id = ? ORDER BY orden', [$idResQ]),
+            ]
+        );
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="qualitas-cotizacion-' . $idResQ . '.pdf"');
+        echo $pdfQ['pdf'];
+        exit;
 
     // ─── Rango de descuento por aseguradora — sólo administradores ─────────
     // Tabla común sys_descuentos (decisión de Albert, 2026-09-28). Hoy sólo

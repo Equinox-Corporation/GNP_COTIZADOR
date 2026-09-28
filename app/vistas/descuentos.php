@@ -5,6 +5,11 @@ $nombreAseg = array_column($aseguradoras, 'nombre', 'clave');
 
 <h1>Rango de descuento por aseguradora</h1>
 
+<p>
+  <a class="btn" href="<?= h(url('qualitas')) ?>">Ir al cotizador de Qualitas</a>
+  <span class="ayuda">En integración: sólo administradores.</span>
+</p>
+
 <p class="ayuda">
   El usuario captura el porcentaje de descuento al cotizar y el sistema lo valida contra este rango, en pantalla y en el servidor.
   Se busca primero la fila de la aseguradora y el tipo de vehículo; si no existe, la fila <strong>Todos</strong>.

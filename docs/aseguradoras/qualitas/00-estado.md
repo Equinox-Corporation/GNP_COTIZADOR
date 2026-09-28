@@ -246,6 +246,54 @@ Las coberturas (`cat_qua_coberturas`) salen del Anexo 5 (S/N/AD/O) y del juego d
 
 **Aplicado a la base real** el 2026-09-28, antes probado contra una copia. Respaldo: `datos/cotizador_gnp.sqlite.bak_pre_qualitas_etapa4_20260928_111345`. Resultado: 4 tablas nuevas; cotizaciones, resultados, llamadas, usuarios y tablas `cat_*` de GNP sin cambio; segunda corrida sin cambios.
 
+### Etapa 5 — pantallas y regresión _(Claude, 2026-09-28)_
+
+**Pantallas** (rutas en `public/index.php`, vistas en `app/vistas/`):
+
+| Ruta | Qué es | Quién |
+|---|---|---|
+| `?r=qualitas` | Captura: clave AMIS y modelo **a mano** con la leyenda "Catálogo de vehículos pendiente"; CP, estado (Anexo 1), uso (normal/carga, con tipo y descripción de carga), paquetes (Básica deshabilitada, "todavía no"), deducibles DM/RT, descuento con el **rango visible** y validado en pantalla y en servidor | Admin mientras no esté `OPERATIVA` |
+| `?r=qualitas/resultado` | Precio (total con derechos e IVA), desglose, **comisión en porcentaje e importe** tal como llegan ("no disponible" si falta), formas de pago, coberturas, PDF y evidencia | Igual |
+| `?r=qualitas/formas-pago` | Botón **"Ver otras formas de pago"**: semestral, trimestral y mensual, sólo cuando el usuario lo pide. Una llamada registrada por forma; las que ya están cotizadas no se repiten | Igual |
+| `?r=qualitas/pdf` | PDF propio (`PdfBasico`) | Igual |
+| `?r=descuentos` | Administración del rango de descuento. Enlace en el menú y acceso al cotizador de Qualitas | Sólo admin; no-admin recibe 403 |
+
+**Cambios en lo compartido:**
+
+- **`layout.php`: un solo cambio**, el enlace "Descuentos" dentro del bloque de administradores. El nombre "Qualitas (en preparación)" del menú sigue sin ser enlace; al cotizador se entra desde "Descuentos".
+- `public/index.php`, además de las rutas nuevas, lleva tres guardas:
+  1. `resultado` manda las cotizaciones de Qualitas a `qualitas/resultado`. La pantalla de GNP tiene un botón de imprimir que llama a GNP.
+  2. `imprimir` rechaza toda cotización que no sea de GNP. Sin esta guarda, `ImpresionServicio` habría llamado a **GNP producción** con el folio de Qualitas.
+  3. `historial`: un no administrador no ve cotizaciones de compañías que no estén `OPERATIVA` o `SUSPENDIDA`. Las filas de GNP no cambian.
+
+**Regresión sin llamadas (2026-09-28):**
+
+- `php -l`: 66 archivos de `app/` y `public/`, sin errores.
+- **Entorno:** dos copias del sistema en servidores locales, una del tag `pre-qualitas` y otra la actual. Cada una con su copia de la base y dos usuarios de prueba (admin y no-admin). En las dos, las URL de GNP y de Qualitas apuntaban a `127.0.0.1:9`, un puerto cerrado: ninguna petición podía salir del equipo.
+- **GNP, 12 pantallas × 2 usuarios** (cotizar, historial con y sin filtro, juega y compara, armador, plantillas, usuarios, resultado, evidencia de petición y de respuesta, comparativo, api de marcas):
+  - Mismos códigos HTTP antes y después.
+  - HTML **idéntico** para el no-admin.
+  - Para el admin, la única diferencia es la línea del enlace "Descuentos".
+  - Plantillas y usuarios siguen dando 403 al no-admin.
+  - Cero errores PHP.
+- **Qualitas y descuentos:**
+  - Admin: todas las pantallas cargan con 200. La cotización de prueba se armó con la respuesta real id 123 y mostró total $10,464.91 y comisión 11% / $928.43.
+  - No-admin: 403 en `qualitas`, `qualitas/resultado`, `qualitas/pdf`, `qualitas/formas-pago` y `descuentos` (también el POST de guardar). En el historial no ve la cotización de Qualitas.
+  - Descuento de 60%: el formulario vuelve con "fuera del rango permitido: 0 a 55%", sin guardar ni llamar.
+  - Guardado del rango: 40–30 se rechaza; GNP se rechaza; 0–50 se guarda y queda registrado con el nombre del admin.
+  - `imprimir` de GNP con la cotización de Qualitas: rechazado, 0 llamadas. Con una cotización de GNP sigue llegando a su flujo de siempre.
+  - Sin servidor de Qualitas (puerto cerrado): cada forma de pago y cada paquete quedó como su propia fila `RED` en `sys_llamadas`, y la cotización quedó en `ERROR` con el mensaje en pantalla.
+- **La base real no cambió:** 40 cotizaciones de GNP y 118 llamadas de GNP antes y después. Las copias se borraron al terminar.
+
+### Etapa 6 — prueba de igualdad (pendiente de autorización)
+
+Cuatro cotizaciones en QA:
+
+- las 3 de "Ejemplos Qualitas": Captiva y NP300 con 55%, Vento con 20%, pronto pago 14;
+- **una de Limitada (código 3) con la Captiva**, para confirmar el paquete (Albert, 2026-09-28).
+
+También está pendiente la llamada de error con descuento de 60% (ids 124 y 125 no salieron del equipo).
+
 ## Reglas verificadas contra el servicio de Qualitas
 
 Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, con su `sys_llamadas.id`. Lo que sale de documentos o de los PDF de ejemplo sigue `[PENDIENTE]`. La petición y la respuesta crudas de cada llamada están también en `docs/aseguradoras/qualitas/evidencia/`.
@@ -259,6 +307,8 @@ Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, c
 | 122 | `GET …/WsEmision.asmx?WSDL` | OK, 3,237 bytes |
 | 123 | `obtenerNuevaEmision`, Captiva 2026, AMIS 21191, CP 11590, Estado 9, Amplia, descuento 55, pronto pago 14 | **OK**, `NoCotizacion` 1219390564, 1,265 ms |
 | 124 | Misma Captiva con `PorcentajeDescuento=60`, para ver el formato de un error (autorizada por Albert el 2026-09-28; se esperaba el error 7) | `RED`: "Could not resolve host". **No llegó a Qualitas.** Windows sí resolvía el nombre, pero el PHP de la sesión no, desde ninguna de las dos terminales. Por la instrucción de no reintentar, no se repitió. El formato de `<CodigoError>` sigue `[PENDIENTE]` |
+| 125 | La misma llamada que la 124, repetida una sola vez desde PowerShell por indicación de Albert (la 124 no había salido, así que no cuenta como reintento) | `RED`: "Could not resolve host" otra vez. **No llegó a Qualitas.** Queda para que Albert la corra desde su terminal: `C:
+mppphpphp.exe appseguradorasQualitaspruebasllamada_qa.php error-descuento-60 --autorizado` |
 
 ### 1. El servicio en QA sólo tiene `obtenerNuevaEmision` `[CONFIRMADO]` (id 122, 121)
 
