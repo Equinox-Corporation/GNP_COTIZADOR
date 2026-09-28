@@ -500,6 +500,7 @@ SQL);
 
         self::migrarDescuentos($pdo);
         self::migrarCatalogoQualitas($pdo);
+        self::migrarPresentacionQualitas($pdo);
 
         // v_cotizaciones necesita la columna aseguradora para poder filtrar el
         // historial por compañía (ADR-010 punto 6 de la Fase 1). CREATE VIEW
@@ -679,6 +680,44 @@ SQL);
         foreach ($filas as $i => [$no, $abr, $nom, $mAmp, $mLim, $env, $suma, $ts, $ded, $perm, $uni, $fte]) {
             $cob->execute([$amplia, $no, $abr, $nom, $mAmp, $mAmp === 'N' ? 0 : $env, $suma, $ts, $ded, $perm, $uni, $i, $fte]);
             $cob->execute([$limitada, $no, $abr, $nom, $mLim, $mLim === 'N' ? 0 : $env, $suma, $ts, $ded, $perm, $uni, $i, $fte]);
+        }
+    }
+
+    /**
+     * 28-sep-2026: cómo se presenta la suma de cada cobertura de Qualitas
+     * (decisión de Albert). Qualitas devuelve Gastos Legales con 3,000,000 y
+     * Asistencia Vial con 20,000 (15,000 en moto) aunque se le mande 0, y en
+     * sus propios PDF las imprime como AMPARADO; igual la RC por la carga
+     * (sys_llamadas 123, 127–130; 00-estado.md, "Reglas verificadas" 14).
+     *
+     * MONTO    = se muestra la suma que devuelva Qualitas; 0 se muestra "—".
+     * AMPARADA = se muestra "Amparada"; la suma cruda se guarda aparte.
+     *
+     * Corre una sola vez: cuando la columna todavía no existe.
+     */
+    private static function migrarPresentacionQualitas(PDO $pdo): void
+    {
+        $hay = [];
+        foreach ($pdo->query('PRAGMA table_info(cat_qua_coberturas)') as $c) {
+            $hay[] = (string) $c['name'];
+        }
+        if (in_array('presentacion_suma', $hay, true)) {
+            return;
+        }
+
+        $pdo->exec("ALTER TABLE cat_qua_coberturas ADD COLUMN presentacion_suma TEXT NOT NULL DEFAULT 'MONTO'");
+        $pdo->exec("UPDATE cat_qua_coberturas SET presentacion_suma = 'AMPARADA' WHERE no_cobertura IN (7, 14)");
+
+        // La 31 (daños por la carga) la agrega QualitasXml cuando el uso es
+        // carga; aquí sólo se da de alta para que tenga nombre y presentación.
+        // enviar = 0: nunca se manda desde el catálogo.
+        $cob = $pdo->prepare(
+            "INSERT INTO cat_qua_coberturas (paquete_id, no_cobertura, abreviatura, nombre, marca, enviar, suma, tipo_suma, deducible, deducibles_permitidos, unidad_deducible, orden, fuente, presentacion_suma)
+             VALUES (?, 31, 'RCCARGA', 'RC por Daños Ocasionados por la Carga', '', 0, '0', '0', '0', '', 'UMA', 13, 'PDF de la NP300 · id 128', 'AMPARADA')
+             ON CONFLICT (paquete_id, no_cobertura) DO NOTHING"
+        );
+        foreach ($pdo->query('SELECT id FROM cat_qua_paquetes') as $p) {
+            $cob->execute([(int) $p['id']]);
         }
     }
 

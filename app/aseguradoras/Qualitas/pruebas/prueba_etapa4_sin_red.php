@@ -262,6 +262,72 @@ ok(str_contains($vista, h($textoQualitas)), 'Pantalla: muestra el mensaje de Qua
 ok(!str_contains($vista, 'class="precio"') && !str_contains($vista, '750'), 'Pantalla: ningún precio, ni el 750');
 $respuesta = $real;
 
+// ─── 8. Presentación de las sumas: respuestas REALES 123 y 127–130 ─────
+echo "\n8. Gastos Legales, Asistencia Vial y RC por la carga: \"Amparada\" en pantalla y en PDF\n";
+$evid = RUTA_BASE . '/docs/aseguradoras/qualitas/evidencia/';
+/** Textos que PdfBasico escribió, en orden: "(texto) Tj". */
+$textosPdf = static function (string $pdf): array {
+    preg_match_all('/\((.*?)(?<!\\\\)\) Tj/s', $pdf, $m);
+    return array_map(static fn (string $s): string => mb_convert_encoding(stripcslashes($s), 'UTF-8', 'Windows-1252'), $m[1]);
+};
+$casos = [
+    123 => ['archivo' => '20260928_102542_llamada-123_cotizar_captiva_respuesta.xml',          'paquete' => 'Amplia',   'datos' => []],
+    127 => ['archivo' => '20260928_123942_llamada-127_cotizar_captiva_respuesta.xml',          'paquete' => 'Amplia',   'datos' => []],
+    128 => ['archivo' => '20260928_124004_llamada-128_cotizar_np300_respuesta.xml',            'paquete' => 'Amplia',   'datos' => ['uso' => '6', 'tipo_carga' => 'A', 'descripcion_carga' => 'DESCRIPCION']],
+    129 => ['archivo' => '20260928_124015_llamada-129_cotizar_vento_respuesta.xml',            'paquete' => 'Amplia',   'datos' => ['porcentaje_descuento' => '20']],
+    130 => ['archivo' => '20260928_124024_llamada-130_cotizar_captiva_limitada_respuesta.xml', 'paquete' => 'Limitada', 'datos' => []],
+];
+foreach ($casos as $id => $caso) {
+    $respuesta = file_get_contents($evid . $caso['archivo']);
+    preg_match('#&lt;PrimaTotal&gt;([\d.]+)&lt;/PrimaTotal&gt;#', $respuesta, $pt);
+    $s = QualitasServicio::cotizar($caso['datos'] + [
+        'clave_vehiculo' => '21191', 'modelo' => '2026', 'conductor_cp' => '11590', 'estado' => '9',
+        'porcentaje_descuento' => '55', 'paquetes' => [$ids[$caso['paquete']]],
+    ], 1, $modulo);
+    $cotP = $pdo->query('SELECT * FROM cot_cotizaciones WHERE id = ' . (int) $s['cotizacion_id'])->fetch(PDO::FETCH_ASSOC);
+    $res  = $pdo->query('SELECT * FROM cot_resultados WHERE cotizacion_id = ' . (int) $s['cotizacion_id'])->fetch(PDO::FETCH_ASSOC);
+    $cobs = $pdo->query('SELECT * FROM cot_resultado_coberturas WHERE resultado_id = ' . (int) $res['id'] . ' ORDER BY orden')->fetchAll(PDO::FETCH_ASSOC);
+    $porNo = array_column($cobs, null, 'cve_cobertura');
+    $conc = json_decode((string) $res['conceptos_json'], true);
+    $amparadas = $id === 128 ? ['7', '14', '31'] : ['7', '14'];
+
+    ok((float) $res['total_pagar'] === (float) $pt[1], "id {$id}: el precio no cambia (" . number_format((float) $pt[1], 2) . ')');
+    ok(array_filter($amparadas, static fn ($n) => ($porNo[$n]['suma_asegurada'] ?? '') !== 'Amparada') === [], "id {$id}: " . implode(', ', $amparadas) . ' guardadas como "Amparada"');
+    ok(($porNo['4']['suma_asegurada'] ?? '') === '$3,000,000', "id {$id}: RC sigue mostrando su monto ($3,000,000)");
+    $crudaGl = array_values(array_filter($conc['coberturas_crudas'] ?? [], static fn ($c) => $c['no'] === '7'))[0]['suma'] ?? null;
+    ok($crudaGl === '3000000', "id {$id}: la suma cruda de Gastos Legales (3000000) queda en conceptos_json");
+
+    // Pantalla
+    $filaVista = $res + ['conceptos' => $conc, 'coberturas' => $cobs];
+    $html = (static function (array $cot, array $datos, array $resultados, bool $vencida, string $aviso, bool $puedeCotizar): string {
+        ob_start();
+        require RUTA_APP . '/vistas/qualitas_resultado.php';
+        return (string) ob_get_clean();
+    })($cotP, json_decode((string) $cotP['datos_aseguradora_json'], true) ?: [], [$filaVista], false, '', false);
+    $enPantalla = true;
+    foreach ($amparadas as $n) {
+        $enPantalla = $enPantalla && str_contains($html, '<tr><th>' . h($porNo[$n]['nombre']) . '</th><td>Amparada</td>');
+    }
+    ok($enPantalla && !str_contains($html, '<td>$20,000</td>') && !str_contains($html, '<td>$15,000</td>'), "id {$id}: pantalla — " . implode(', ', $amparadas) . ' dicen "Amparada"; ni $20,000 ni $15,000');
+
+    // PDF propio, con la misma regla (el mismo texto guardado)
+    $pdf = $modulo->imprimir(
+        $cotP + ['datos_aseguradora' => json_decode((string) $cotP['datos_aseguradora_json'], true) ?: []],
+        $res + ['conceptos' => $conc, 'coberturas' => $cobs]
+    )['pdf'];
+    $tx = $textosPdf($pdf);
+    $enPdf = true;
+    foreach ($amparadas as $n) {
+        $i = array_search($porNo[$n]['nombre'], $tx, true);
+        $enPdf = $enPdf && $i !== false && ($tx[$i + 1] ?? '') === 'Amparada';
+    }
+    ok($enPdf && !in_array('$20,000', $tx, true) && !in_array('$15,000', $tx, true), "id {$id}: PDF — misma regla que la pantalla");
+    ok(in_array('$' . number_format((float) $pt[1], 2), $tx, true), "id {$id}: PDF — total " . number_format((float) $pt[1], 2));
+}
+ok(AseguradoraQualitas::textoSuma('0', 'MONTO') === '—' && AseguradoraQualitas::textoSuma('', 'MONTO') === '—', 'Suma 0 en una cobertura no marcada: "—", no "Amparada"');
+ok(AseguradoraQualitas::textoSuma('3000000', 'AMPARADA') === 'Amparada' && AseguradoraQualitas::textoSuma('468000', 'MONTO') === '$468,000', 'textoSuma(): Amparada / monto');
+$respuesta = $real;
+
 echo "\n───────────────────────────────────────────────────────────────────\n";
 echo $fallas === 0 ? " {$total} pruebas, todas bien.\n" : " {$fallas} de {$total} pruebas FALLARON.\n";
 exit($fallas === 0 ? 0 : 1);

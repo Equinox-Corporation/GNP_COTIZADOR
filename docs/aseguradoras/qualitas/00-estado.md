@@ -332,7 +332,6 @@ mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva
 - [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
 - [ ] **Producción va por `http` sin cifrar** según el manual. Preguntar a Qualitas si hay `https` antes de mandar datos reales.
-- [ ] **Gastos Legales y Asistencia Vial:** hoy se muestran con la suma que devuelve Qualitas ($3,000,000 y $20,000), donde su PDF dice AMPARADO. Pendiente de decidir la presentación (punto 14).
 - [ ] **Una cotización de punta a punta desde la pantalla contra QA.** Las cuatro de la Etapa 6 salieron del script; la pantalla y `QualitasServicio` sólo se han probado con el transporte falso.
 - [ ] **Otras formas de pago** (semestral, trimestral, mensual): nunca se han cotizado contra el servicio.
 - [ ] **Menú para todos los usuarios:** al pasar a `OPERATIVA`, Qualitas sale del bloque "en preparación" de los administradores y hoy no hay enlace para los demás. Hay que darle un lugar en `layout.php` antes del cambio de estado.
@@ -491,7 +490,7 @@ Captiva 2026, AMIS 21191, 55%, pronto pago 14, por el módulo (paquete del catá
   5,455.40 + 872.86 = 6,328.26 ✓
   ```
 
-### 14. Gastos Legales y Asistencia Vial: la suma la pone Qualitas `[CONFIRMADO]` (ids 123, 127–130)
+### 14. Gastos Legales, Asistencia Vial y RC por la carga: la suma la pone Qualitas `[CONFIRMADO]` (ids 123, 127–130) · se muestran "Amparada"
 
 En la petición mandamos `SumaAsegurada` **0** para Gastos Legales (7) y Asistencia Vial (14). Qualitas las regresa llenas en las cinco respuestas:
 
@@ -504,4 +503,16 @@ En la petición mandamos `SumaAsegurada` **0** para Gastos Legales (7) y Asisten
 
 - **En los PDF de Qualitas las tres dicen AMPARADO.** El importe no es un invento del módulo, pero tampoco es como Qualitas presenta esas coberturas.
 - Hoy el módulo muestra cualquier suma mayor que 0 como monto ("$3,000,000", "$20,000"), y la de 0 como "Amparada". La RC por la carga queda en "Amparada" por coincidencia, no por regla.
-- **La presentación está pendiente de decidir**; no se ha corregido.
+**Decisión (Albert, 2026-09-28), aplicada:**
+
+- `cat_qua_coberturas.presentacion_suma`: `AMPARADA` para Gastos Legales (7), Asistencia Vial (14) y RC por la carga (31); `MONTO` para las demás.
+- Una sola regla, `AseguradoraQualitas::textoSuma()`, para la pantalla y para el PDF propio:
+  - `AMPARADA` → "Amparada";
+  - `MONTO` mayor que 0 → el importe;
+  - `MONTO` en 0 → "—" (ya no "Amparada").
+- **La suma cruda no se pierde**: va en `conceptos_json.coberturas_crudas`, con suma, tipo de suma, deducible y prima tal como las devolvió Qualitas.
+- **Pruebas sin red** con las respuestas reales 123 y 127–130 como fixtures (`prueba_etapa4_sin_red.php`, sección 8):
+  - Gastos Legales, Asistencia Vial y RC por la carga salen "Amparada" en pantalla y en PDF.
+  - RC sigue mostrando $3,000,000, la suma cruda queda guardada y el precio no cambia.
+  - Se comprobó que la prueba falla si Asistencia Vial vuelve a `MONTO`.
+- **Migración de una sola vez** (`Esquema::migrarPresentacionQualitas`): probada en una copia y aplicada a la base real, respaldo `bak_pre_qualitas_presentacion_20260928_133538`. Agregó la columna y una fila 31 por paquete, en Básica inerte porque está deshabilitada. Nada más cambió.

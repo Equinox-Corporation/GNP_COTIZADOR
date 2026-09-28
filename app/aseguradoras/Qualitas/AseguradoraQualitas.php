@@ -345,8 +345,8 @@ final class AseguradoraQualitas implements CotizadorAseguradora
     {
         $p = $mov['primas'];
 
-        // Nombres y unidades salen del catálogo; suma y deducible, de la respuesta.
-        $st = $this->pdo->prepare('SELECT no_cobertura, nombre, unidad_deducible FROM cat_qua_coberturas WHERE paquete_id = ?');
+        // Nombres, unidades y presentación salen del catálogo; suma y deducible, de la respuesta.
+        $st = $this->pdo->prepare('SELECT no_cobertura, nombre, unidad_deducible, presentacion_suma FROM cat_qua_coberturas WHERE paquete_id = ?');
         $st->execute([(int) $paquete['id']]);
         $cat = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $f) {
@@ -357,9 +357,7 @@ final class AseguradoraQualitas implements CotizadorAseguradora
         foreach ($mov['coberturas'] as $cb) {
             $no  = (int) $cb['no'];
             $uni = (string) ($cat[$no]['unidad_deducible'] ?? '');
-            $sumaTxt = is_numeric($cb['suma']) && (float) $cb['suma'] > 0
-                ? '$' . number_format((float) $cb['suma'], 0)
-                : ($cb['suma'] === '' || $cb['suma'] === '0' ? 'Amparada' : (string) $cb['suma']);
+            $sumaTxt = self::textoSuma((string) $cb['suma'], (string) ($cat[$no]['presentacion_suma'] ?? 'MONTO'));
             $dedNum = ltrim((string) $cb['deducible'], '0');
             $dedTxt = $dedNum === '' ? ($uni === 'UMA' ? '0 UMA' : '—') : $dedNum . ($uni === '%' ? '%' : ($uni !== '' ? " {$uni}" : ''));
 
@@ -399,9 +397,34 @@ final class AseguradoraQualitas implements CotizadorAseguradora
                 'comision_importe'     => count($recibos) === 1 ? $num($recibos[0]['Comision'] ?? null) : null,
                 'recibos'              => $recibos,
                 'primas'               => $p,
+                // Suma, tipo de suma y deducible tal como los devolvió Qualitas, por
+                // cobertura: la pantalla puede decir "Amparada", pero el dato no se pierde.
+                'coberturas_crudas'    => $mov['coberturas'],
                 'llamada_id'           => $llamadaId,
             ],
         );
+    }
+
+    /**
+     * Cómo se lee la suma de una cobertura. Una sola regla para la pantalla y
+     * para el PDF (Albert, 2026-09-28):
+     *
+     * - AMPARADA (Gastos Legales, Asistencia Vial, RC por la carga): "Amparada",
+     *   como en los PDF de Qualitas, aunque el servicio devuelva un importe.
+     * - MONTO con suma mayor que 0: el importe ("$468,000").
+     * - MONTO con suma 0 o vacía: "—". No se inventa "Amparada".
+     * - Cualquier otro texto: tal cual.
+     */
+    public static function textoSuma(string $suma, string $presentacion): string
+    {
+        if ($presentacion === 'AMPARADA') {
+            return 'Amparada';
+        }
+        $suma = trim($suma);
+        if (is_numeric($suma)) {
+            return (float) $suma > 0 ? '$' . number_format((float) $suma, 0) : '—';
+        }
+        return $suma === '' ? '—' : $suma;
     }
 
     private function fallo(string $estado, string $mensaje, string $origen): array
