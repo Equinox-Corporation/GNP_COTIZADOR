@@ -23,6 +23,9 @@ declare(strict_types=1);
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-vento            --autorizado
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-captiva-limitada --autorizado
  *
+ * Consideración 40 (SEPOMEX), seguida de cotizar-captiva en la misma sesión:
+ *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-captiva-cp40 --municipio=NNN --colonia=NNNN --autorizado
+ *
  * Los tres ejemplos mandan el mismo XML que los ejemplos de Qualitas (salvo
  * fechas: hoy) e imprimen la comparación contra su PDF. La Limitada no tiene
  * PDF de referencia: pasa por el módulo (AseguradoraQualitas, paquete del
@@ -144,13 +147,30 @@ switch ($que) {
     case 'cotizar-np300':
     case 'cotizar-vento':
     case 'error-descuento-60':
+    case 'cotizar-captiva-cp40':
         $esError = $que === 'error-descuento-60';
-        $ej = $ejemplos[$esError ? 'cotizar-captiva' : $que];
+        $esCp40  = $que === 'cotizar-captiva-cp40';
+        $ej = $ejemplos[($esError || $esCp40) ? 'cotizar-captiva' : $que];
         $datos = $ej['datos'] + ['estado' => '9', 'uso' => '1', 'servicio' => '1', 'forma_pago' => 'C'];
         if ($esError) {
             // Fuera del rango del negocio (0-55) a propósito, para ver el formato real de
             // <CodigoError> (id 126). Este script no usa RangoDescuento; el módulo sí lo aplica.
             $datos['porcentaje_descuento'] = 60;
+        }
+        if ($esCp40) {
+            // La misma Captiva, más la consideración 40 (códigos SEPOMEX de municipio y
+            // colonia del CP 11590), para ver si cambia el precio ("Indicaciones Qualitas.pdf").
+            // Se corre junto con cotizar-captiva, seguidas, en la misma sesión.
+            $mun = (string) ($a['municipio'] ?? '');
+            $col = (string) ($a['colonia'] ?? '');
+            if (!preg_match('/^\d{1,6}$/', $mun) || !preg_match('/^\d{1,6}$/', $col)) {
+                fwrite(STDERR, "cotizar-captiva-cp40 necesita --municipio=NNN y --colonia=NNNN (códigos SEPOMEX, sólo dígitos).\n");
+                exit(1);
+            }
+            $datos['municipio_sepomex'] = $mun;
+            $datos['colonia_sepomex']   = $col;
+            $ej['titulo'] .= " + consideración 40 (municipio {$mun}, colonia {$col})";
+            $ej['archivo'] = 'cotizar_captiva_cp40';
         }
         $solicitud = [
             'clave_vehiculo'    => $ej['amis'],
@@ -162,7 +182,7 @@ switch ($que) {
         $pct = $datos['porcentaje_descuento'];
         echo 'Qualitas QA · ' . ($esError ? "Captiva con descuento {$pct}% (error esperado)" : $ej['titulo']) . "\n";
         $xml = QualitasXml::cotizacion($solicitud, $cliente->configXml());
-        $r = $cliente->cotizar($xml, null, "QUALITAS obtenerNuevaEmision TipoMovimiento=2 · AMIS {$ej['amis']} · descuento {$pct}%");
+        $r = $cliente->cotizar($xml, null, "QUALITAS obtenerNuevaEmision TipoMovimiento=2 · AMIS {$ej['amis']} · descuento {$pct}%" . ($esCp40 ? " · consideración 40 ({$datos['municipio_sepomex']}/{$datos['colonia_sepomex']})" : ''));
         $resumen($r);
         $mov = $r['movimientos'][0] ?? null;
         if ($mov !== null) {
@@ -210,6 +230,6 @@ switch ($que) {
         break;
 
     default:
-        fwrite(STDERR, "Uso: llamada_qa.php test|wsdl|error-descuento-60|cotizar-captiva|cotizar-np300|cotizar-vento|cotizar-captiva-limitada --autorizado\n");
+        fwrite(STDERR, "Uso: llamada_qa.php test|wsdl|error-descuento-60|cotizar-captiva|cotizar-np300|cotizar-vento|cotizar-captiva-limitada|cotizar-captiva-cp40 [--municipio=NNN --colonia=NNNN] --autorizado\n");
         exit(1);
 }

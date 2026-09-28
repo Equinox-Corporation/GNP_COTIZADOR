@@ -111,6 +111,22 @@ final class QualitasXml
         $blindado = (string) ($d['blindado'] ?? 'N');
         $avPlus   = (string) ($d['asistencia_vial_plus'] ?? 'S');
 
+        // Consideración 40 (nivel asegurado): códigos SEPOMEX del domicilio legal
+        // para la tarifa por CP — TipoRegla 7 municipio, 8 colonia ("Indicaciones
+        // Qualitas.pdf" y plantilla XMLDoc_EjemploCamposEmision_CP.xml). Van las
+        // dos o ninguna; sin ellas el XML sale idéntico al de antes. Formato
+        // exacto (ceros a la izquierda) [PENDIENTE hasta verlo en QA].
+        $municipio = trim((string) ($d['municipio_sepomex'] ?? ''));
+        $colonia   = trim((string) ($d['colonia_sepomex'] ?? ''));
+        if (($municipio === '') !== ($colonia === '')) {
+            throw new InvalidArgumentException('La consideración 40 lleva municipio y colonia juntos (SEPOMEX).');
+        }
+        foreach (['municipio' => $municipio, 'colonia' => $colonia] as $nombre => $codigo) {
+            if ($codigo !== '' && !preg_match('/^\d{1,6}$/', $codigo)) {
+                throw new InvalidArgumentException("Código de {$nombre} SEPOMEX inválido (sólo dígitos): \"{$codigo}\".");
+            }
+        }
+
         $coberturas = self::coberturas($solicitud['paquete']['coberturas'] ?? [], $d);
 
         $e = static fn (string $v): string => htmlspecialchars($v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
@@ -122,6 +138,10 @@ final class QualitasXml
         $x .= "\t\t\t<Estado>{$e($estado)}</Estado>\n";
         $x .= "\t\t\t<CodigoPostal>{$e($cp)}</CodigoPostal>\n";
         $x .= "\t\t\t<NoEmpleado/>\n\t\t\t<Agrupador/>\n";
+        if ($municipio !== '') {
+            $x .= self::consideracion('DA', '40', $municipio, "\t\t\t", '7');
+            $x .= self::consideracion('DA', '40', $colonia, "\t\t\t", '8');
+        }
         $x .= "\t\t</DatosAsegurado>\n";
         $x .= "\t\t<DatosVehiculo NoInciso=\"1\">\n";
         $x .= "\t\t\t<ClaveAmis>{$e($amis)}</ClaveAmis>\n";
@@ -213,11 +233,11 @@ final class QualitasXml
         return array_values($salida);
     }
 
-    private static function consideracion(string $nivel, string $no, string $valor, string $sangria): string
+    private static function consideracion(string $nivel, string $no, string $valor, string $sangria, string $tipoRegla = self::TIPO_REGLA): string
     {
         $v = htmlspecialchars($valor, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         return "{$sangria}<ConsideracionesAdicionales{$nivel} NoConsideracion=\"{$no}\">\n"
-             . "{$sangria}\t<TipoRegla>" . self::TIPO_REGLA . "</TipoRegla>\n"
+             . "{$sangria}\t<TipoRegla>{$tipoRegla}</TipoRegla>\n"
              . "{$sangria}\t<ValorRegla>{$v}</ValorRegla>\n"
              . "{$sangria}</ConsideracionesAdicionales{$nivel}>\n";
     }

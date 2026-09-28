@@ -331,6 +331,41 @@ ok(str_contains($reg['xml_entrada'], '<cUsuario>***</cUsuario>'), 'cUsuario qued
 ok(str_contains(end($envios)['cuerpo'], 'usuario-secreto'), 'Lo que sale sí lleva la credencial (sólo se enmascara la evidencia)');
 ok($t['estado'] === QualitasClient::OK && ($t['datos'][0]['CAMIS'] ?? '') === '07003', 'SIMULADO listaTarifas: lee los elementos');
 
+// ─── 7. Consideración 40 (municipio y colonia SEPOMEX) ──────────────────
+echo "\n7. Consideración 40 en DatosAsegurado (TipoRegla 7 municipio, 8 colonia)\n";
+$solCp40 = escenarios()['captiva']['solicitud'];
+$solCp40['datos_aseguradora'] += ['municipio_sepomex' => '016', 'colonia_sepomex' => '0123'];   // valores de PRUEBA, no de SEPOMEX
+$xml40 = QualitasXml::cotizacion($solCp40, $cliente->configXml());
+$bloque40 = "\t\t\t<NoEmpleado/>\n\t\t\t<Agrupador/>\n"
+          . "\t\t\t<ConsideracionesAdicionalesDA NoConsideracion=\"40\">\n\t\t\t\t<TipoRegla>7</TipoRegla>\n\t\t\t\t<ValorRegla>016</ValorRegla>\n\t\t\t</ConsideracionesAdicionalesDA>\n"
+          . "\t\t\t<ConsideracionesAdicionalesDA NoConsideracion=\"40\">\n\t\t\t\t<TipoRegla>8</TipoRegla>\n\t\t\t\t<ValorRegla>0123</ValorRegla>\n\t\t\t</ConsideracionesAdicionalesDA>\n"
+          . "\t\t</DatosAsegurado>\n";
+ok(str_contains($xml40, $bloque40), 'Con municipio y colonia: dos <ConsideracionesAdicionalesDA NoConsideracion="40"> después de <Agrupador/>, TipoRegla 7 y 8, ceros conservados');
+$sin40 = str_replace(substr($bloque40, strlen("\t\t\t<NoEmpleado/>\n\t\t\t<Agrupador/>\n"), -strlen("\t\t</DatosAsegurado>\n")), '', $xml40);
+ok($sin40 === $generados['captiva'], 'Quitando esas dos consideraciones, el XML es idéntico al de hoy (nada más cambia)');
+ok(!str_contains($generados['captiva'], 'ConsideracionesAdicionalesDA') && !str_contains($generados['np300'], 'ConsideracionesAdicionalesDA') && !str_contains($generados['vento'], 'ConsideracionesAdicionalesDA'), 'Sin ellas, los 3 ejemplos no llevan consideraciones de asegurado (siguen idénticos, sección 2)');
+$d40 = dom($xml40);
+$hijos = array_map(static fn (DOMNode $n) => $n->nodeName, array_values(array_filter(iterator_to_array($d40->getElementsByTagName('DatosAsegurado')->item(0)->childNodes), static fn ($n) => $n instanceof DOMElement)));
+ok(array_slice($hijos, -3) === ['Agrupador', 'ConsideracionesAdicionalesDA', 'ConsideracionesAdicionalesDA'], 'Orden igual al de la plantilla de Qualitas: Agrupador y luego las consideraciones DA');
+$solUno = $solCp40;
+unset($solUno['datos_aseguradora']['colonia_sepomex']);
+ok(lanza(static fn () => QualitasXml::cotizacion($solUno, $cliente->configXml())) !== null, 'Sólo el municipio, sin colonia: no se arma (van juntos)');
+$solMal = $solCp40;
+$solMal['datos_aseguradora']['colonia_sepomex'] = '12A';
+ok(lanza(static fn () => QualitasXml::cotizacion($solMal, $cliente->configXml())) !== null, 'Código con letras: no se arma');
+
+// El candado no cambia: acepta la consideración 40 y sigue bloqueando lo mismo.
+ok(lanza(static fn () => $clienteQa->validarContenido($xml40)) === null, 'Candado: el XML con consideración 40 pasa (es cotización)');
+$antes = count($envios);
+foreach (['TipoMovimiento="3"', 'TipoMovimiento="4"'] as $mala) {
+    $msg = lanza(static fn () => $clienteQa->cotizar(str_replace('TipoMovimiento="2"', $mala, $xml40)));
+    ok($msg !== null && str_starts_with($msg, 'BLOQUEADO') && count($envios) === $antes, "Candado: con consideración 40 y {$mala}, bloqueado y no sale");
+}
+$respuestaSimulada = file_get_contents(__DIR__ . '/SIMULADO_respuesta_cotizacion_ok.xml');
+$clienteQa->cotizar($xml40);
+$ultimo = end($envios);
+ok(count($envios) === $antes + 1 && str_contains($ultimo['cuerpo'], '&lt;ConsideracionesAdicionalesDA NoConsideracion=&quot;40&quot;&gt;'), 'Control: sale una vez (transporte falso) y lleva la consideración 40');
+
 // ─── 6. Producción vacía ───────────────────────────────────────────────
 echo "\n6. Configuración\n";
 $valores = new ReflectionProperty(Env::class, 'valores');
