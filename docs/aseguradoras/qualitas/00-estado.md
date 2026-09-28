@@ -164,7 +164,7 @@ PRIMA NETA − PRONTO PAGO (2%) + GASTOS EXP.  = SUBTOTAL   ;  SUBTOTAL × 16%  
    - GNP no recibe descuento en la petición: no se le conecta.
    - El porcentaje usado se guarda en `datos_aseguradora_json` de la cotización, para que el historial explique el precio.
 2. **La comisión se muestra al usuario.** "Bajo su control": hoy el único control documentado es el **descuento**. No hay campo documentado para ceder o ajustar comisión; el error 179 ("La cesión de comisiones es mayor a la comisión") indica que el mecanismo existe, pero no cómo se manda `[PENDIENTE — preguntar a Qualitas]`. Tampoco está documentado si el descuento reduce la comisión `[PENDIENTE]`. El módulo muestra la comisión que devuelva Qualitas junto al precio y no la inventa ni la calcula.
-   - _(Albert, 2026-09-28)_ `Primas/Comision` es el **porcentaje** (autos 11, motos 11, pick-up 8.8, camiones 8.8; camiones aún sin ver en el servicio) y `Recibos/Comision` el **importe**. Se muestran los dos, tal como lleguen, y lo que falte dice "no disponible". Detalle en "Reglas verificadas", punto 7.
+   - _(Albert, 2026-09-28)_ `Primas/Comision` es el **porcentaje** (autos 11, motos 11, camiones 8.8 — pick-up cuenta como camión para la comisión) y `Recibos/Comision` el **importe**. Se muestran los dos, tal como lleguen, y lo que falte dice "no disponible". Detalle en "Reglas verificadas", punto 7.
 3. **Pronto pago se aplica**: consideración 05 con 14 días (máximo permitido, error 192). Valor desde configuración.
 
 ## Avance del módulo
@@ -327,7 +327,7 @@ mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva
 
 **Falta para `OPERATIVA`:**
 
-- [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo.
+- [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo (aviso de comisión anómala, pendiente de la Etapa 3).
 - [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
 - [ ] **Producción va por `http` sin cifrar** según el manual. Preguntar a Qualitas si hay `https` antes de mandar datos reales.
@@ -335,7 +335,7 @@ mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva
 - [ ] **Una cotización de punta a punta desde la pantalla contra QA.** Las cuatro de la Etapa 6 salieron del script; la pantalla y `QualitasServicio` sólo se han probado con el transporte falso.
 - [ ] **Otras formas de pago** (semestral, trimestral, mensual): nunca se han cotizado contra el servicio.
 - [ ] **Menú para todos los usuarios:** al pasar a `OPERATIVA`, Qualitas sale del bloque "en preparación" de los administradores y hoy no hay enlace para los demás. Hay que darle un lugar en `layout.php` antes del cambio de estado.
-- [ ] Sin bloquear, pero pendientes: paquete Básica sin código; vigencia de 7 días sin confirmar; comisión de camiones sin ver en el servicio; los códigos `AUTH` y `SISTEMA` de la tabla de errores no se han visto llegar.
+- [ ] Sin bloquear, pero pendientes: paquete Básica sin código; vigencia de 7 días sin confirmar; comisión de un camión que no sea pick-up sin ver en el servicio; los códigos `AUTH` y `SISTEMA` de la tabla de errores no se han visto llegar.
 ## Reglas verificadas contra el servicio de Qualitas
 
 Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, con su `sys_llamadas.id`. Lo que sale de documentos o de los PDF de ejemplo sigue `[PENDIENTE]`. La petición y la respuesta crudas de cada llamada están también en `docs/aseguradoras/qualitas/evidencia/`.
@@ -417,10 +417,11 @@ Con la consideración 05 = 14 días, `Recargo` = **−168.81** = −2% de la pri
 | Auto | 11 | **11** `[CONFIRMADO]` | 123, 127 (Captiva, Amplia) | 8,440.28 | 928.43 |
 | Auto | 11 | **11** `[CONFIRMADO]` | 130 (Captiva, Limitada) | 4,801.43 | 528.15 |
 | Moto | 11 | **11** `[CONFIRMADO]` | 129 (Vento) | 6,234.08 | 685.74 |
-| Pick-up | 8.8 | **8.8** `[CONFIRMADO]` | 128 (NP300, uso carga) | 14,710.43 | 1,294.51 |
-| Camión | 8.8 | sin observar: ninguna cotización de camión todavía | — | — | — |
+| Camiones (incluye pick-up) | 8.8 | **8.8** `[CONFIRMADO]` | 128 (NP300 pick-up, uso carga) | 14,710.43 | 1,294.51 |
 
-Camiones queda **confirmado por negocio, pendiente de ver en el servicio**.
+Para la comisión, **pick-up forma parte de camiones** (Albert, 2026-09-28): por eso la NP300 trae 8.8. No se ha cotizado un camión que no sea pick-up. Moto: 11, confirmado por negocio.
+
+> ⚠️ **No confundir con el descuento.** Para el tope de descuento, el formulario del negocio agrupa pick-up con **autos** (55), no con camiones (30). Son dos agrupaciones distintas; ver "Decisiones de negocio", punto 1.
 
 **Importe = porcentaje × prima neta** (antes del pronto pago) en las cinco respuestas, **truncado a centavos, no redondeado**:
 
@@ -435,7 +436,7 @@ Es otra razón para no calcularlo nunca.
 
 - **Al usuario se le muestran los dos**, porcentaje e importe, tal como vengan en cada respuesta. No se calculan ni se derivan: ni el importe a partir del porcentaje, ni al revés.
 - **Nunca se asume el porcentaje por tipo de vehículo.** La tabla sirve para **detectar anomalías, no para llenar huecos**.
-- **Si una respuesta trae un porcentaje distinto al esperado para su tipo**, se muestra tal cual y se anota un aviso en la bitácora.
+- **Si una respuesta trae un porcentaje distinto al esperado para su tipo**, se muestra tal cual y se anota un aviso en la bitácora. **Pendiente, ligado a la Etapa 3** (decisión de Albert, 2026-09-28: opción a). Se implementa completo cuando llegue el catálogo y se sepa el tipo de vehículo. Hoy no se compara nada, para no suponer el tipo.
 - **Si no llega el porcentaje o el importe, se muestra "no disponible"**, nunca un valor por omisión.
 
 ### 8. Formas de pago: una por llamada `[CONFIRMADO para contado · PENDIENTE las demás]` (id 123)
