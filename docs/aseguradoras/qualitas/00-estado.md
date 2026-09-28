@@ -126,29 +126,44 @@ PRIMA NETA − PRONTO PAGO (2%) + GASTOS EXP.  = SUBTOTAL   ;  SUBTOTAL × 16%  
 - Las primas por cobertura del PDF **no suman la prima neta** (Captiva: suman 17,844.35 contra 8,440.28). El descuento se aplica en algún punto que el documento no explica. No se usa la suma de coberturas como precio.
 - Los XML de ejemplo no son la petición exacta de esos PDF (sus fechas son 29-ago/30-sep y los PDF dicen 23-sep). Sirven como modelo, no como par byte a byte.
 
-## Lo que falta pedir a Qualitas (bloqueante)
+## Pendientes con Qualitas
 
-- [ ] Confirmar que el negocio **08902** con agente **0008810** ya está habilitado para servicio web, en QA y en producción
-- [ ] Cómo se autentica `WsEmision`: ¿sólo negocio + agente? ¿Registro de IP?
-- [ ] **Usuario (`cUsuario`) y clave de tarifa (`cTarifa`)** para `wsTarifa` (catálogo de vehículos), y si existe URL de pruebas
-- [ ] **Un ejemplo de respuesta real** de cotización (`TipoMovimiento` 2), exitosa y con error
-- [ ] Contacto técnico
+Lo que **sólo Qualitas puede resolver**. Todavía no se les escribe (Albert, 2026-09-28): primero se agotan las pruebas de nuestro lado. Lo que resolvamos nosotros sale de esta lista y queda anotado abajo, en "Resuelto de nuestro lado".
 
-## Lo que hay que aclarar con Qualitas
+**Bloquean el paso a `OPERATIVA`:**
 
-- [ ] Código del paquete "Básica" (¿04 RC?)
-- [ ] ¿Un envío acepta varios `Movimiento` (varios paquetes)?
-- [ ] ¿La respuesta trae desglose por forma de pago (C/S/T/M) o hay que cotizar una por una?
-- [ ] ¿`PrimaTotal` ya incluye pronto pago, derechos e IVA? ¿El pronto pago llega en `Recargo`?
-- [ ] ¿Cómo se calcula la suma de DM/RT cuando se manda 0, y qué tipo de suma aplica?
-- [ ] ¿Las primas por cobertura de la respuesta vienen antes o después del descuento?
-- [ ] Consideración 04: ¿con la URL de QA se manda 1 y con producción 0? ¿Qué pasa si no se manda?
-- [ ] ¿Hay URL **https** de producción para `WsEmision` y `wsTarifa`?
-- [ ] ¿Existe impresión de **cotización** (por número de cotización)?
-- [ ] Versión vigente de los manuales (son de 2013 a 2021)
-- [ ] ¿Cómo se cede o ajusta la comisión por servicio web (error 179)? ¿El descuento (`PorcentajeDescuento`) sale de la comisión del agente?
-- [ ] ¿Qué dato del catálogo (`cCategoria`, marca…) distingue auto, pick-up, camión y moto para aplicar el tope de descuento?
-- [ ] `obtenerNuevaEmisionDXN` aparece en el WSDL y no está documentado: ¿qué es?
+- [ ] Confirmar que el negocio **08902** con agente **0008810** está habilitado en **producción**. En QA ya cotiza (id 123).
+- [ ] Cómo se autentica `WsEmision` en **producción**: ¿sólo negocio + agente, o también registro de IP? En QA bastó con negocio + agente (id 123).
+- [ ] **Usuario (`cUsuario`) y clave de tarifa (`cTarifa`)** de `wsTarifa` (catálogo de vehículos). También: namespace del servicio y si existe URL de pruebas.
+- [ ] ¿Hay URL **https** de producción para `WsEmision` y `wsTarifa`? El manual sólo da `http`.
+
+**No bloquean, pero sólo ellos lo saben:**
+
+- [ ] Código del paquete **"Básica"**. No está en el Anexo 5; hoy está deshabilitado.
+- [ ] Qué dato del catálogo (`cCategoria`, marca…) dice si el vehículo es auto, pick-up, camión o moto. Lo necesitan el tope de descuento por tipo y el aviso de comisión anómala (Etapa 3).
+- [ ] Vigencia de la cotización: el PDF dice 7 días y la respuesta no trae el dato.
+- [ ] Suma de DM/RT: se manda 0 y Qualitas regresa el valor (468,000 para la Captiva) con **`TipoSuma` 2**, que no está en el Anexo 6. ¿Qué significa?
+- [ ] Primas por cobertura: suman 17,844.35 contra una prima neta de 8,440.28 (id 123). ¿Vienen antes del descuento?
+- [ ] Consideración 04: con QA y `1` funciona (ids 123 a 130). ¿Qué pasa si no se manda? ¿Producción exige `0`?
+- [ ] Comisión: ¿cómo se cede o ajusta por servicio web (error 179)? ¿El descuento sale de la comisión del agente?
+- [ ] ¿Existe impresión de **cotización**, por número de cotización? `WSIMPRESION` pide número de póliza.
+- [ ] `obtenerNuevaEmisionDXN` aparece en el WSDL del manual y no está documentado: ¿qué es? `Test` y `HolamundoAux` no existen en el WSDL de QA (id 122): ¿existen en producción?
+- [ ] Versión vigente de los manuales (son de 2013 a 2021).
+- [ ] Contacto técnico. El formulario de alta lo deja en blanco.
+
+### Lo que todavía probamos nosotros (no se les pregunta)
+
+- Semestral, trimestral y mensual: la prueba de Albert desde la pantalla.
+- ¿Un envío acepta varios `<Movimiento>`, es decir, varios paquetes? Se puede probar con una llamada autorizada.
+- Una cotización de un camión que no sea pick-up, para ver su comisión.
+
+### Resuelto de nuestro lado (sale de la lista de Qualitas)
+
+- Ejemplo de respuesta real, exitosa y con error: ids 123 y 126.
+- Qué trae `PrimaTotal`: incluye pronto pago, derechos e IVA; el pronto pago llega en `Recargo` (ids 123 y 127 a 129).
+- Desglose por forma de pago: la respuesta trae sólo la forma de pago pedida; hay que cotizar una por una (id 123).
+- Formato de `<CodigoError>`: id 126.
+- Tope de descuento de autos, 55: lo dice el propio servicio (id 126).
 
 ## Decisiones ya tomadas
 
