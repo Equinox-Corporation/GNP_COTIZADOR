@@ -295,6 +295,23 @@ Cuatro cotizaciones en QA:
 
 La llamada de error con descuento de 60% ya se hizo: la corrió Albert desde su terminal (id 126, ver "Reglas verificadas", punto 11).
 
+Comandos, para correr desde la terminal de Albert (cada uno es **una** llamada a QA):
+
+```
+C:
+mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva          --autorizado
+C:
+mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-np300            --autorizado
+C:
+mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-vento            --autorizado
+C:
+mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva-limitada --autorizado
+```
+
+- **Los tres ejemplos** mandan el mismo XML que los ejemplos de Qualitas, salvo las fechas (hoy). Se comprobó sin red, contra una copia saneada. Cada uno imprime la comparación contra su PDF: prima neta, pronto pago, derechos, IVA y total, con ✓/✗.
+- **La Limitada** pasa por el módulo: paquete del catálogo con `<Paquete>3</Paquete>` y coberturas 3, 4, 5, 6, 7, 14 y 47, sin DM. No tiene PDF de referencia: sólo confirma que el paquete cotiza.
+- Todos dejan su fila en `sys_llamadas` y la petición y la respuesta crudas en `evidencia/`.
+
 ## Reglas verificadas contra el servicio de Qualitas
 
 Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, con su `sys_llamadas.id`. Lo que sale de documentos o de los PDF de ejemplo sigue `[PENDIENTE]`. La petición y la respuesta crudas de cada llamada están también en `docs/aseguradoras/qualitas/evidencia/`.
