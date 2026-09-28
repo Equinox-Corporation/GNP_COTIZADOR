@@ -99,10 +99,10 @@ $descuento = isset($datosAseg['porcentaje_descuento']) ? (int) $datosAseg['porce
       </div>
       <?php $faltan = array_diff(['S', 'T', 'M'], array_column($formas, 'clave')); ?>
       <?php if ($faltan !== [] && !$vencida && $puedeCotizar): ?>
-        <form method="post" action="<?= h(url('qualitas/formas-pago')) ?>">
+        <form method="post" action="<?= h(url('qualitas/formas-pago')) ?>" class="form-un-envio">
           <input type="hidden" name="_t" value="<?= h(Auth::token()) ?>">
           <input type="hidden" name="resultado_id" value="<?= (int) $r['id'] ?>">
-          <button class="btn">Ver otras formas de pago</button>
+          <button class="btn" data-texto="Ver otras formas de pago">Ver otras formas de pago</button>
           <span class="ayuda">Cotiza semestral, trimestral y mensual: una llamada a Qualitas por cada una.</span>
         </form>
       <?php endif; ?>
@@ -127,3 +127,23 @@ $descuento = isset($datosAseg['porcentaje_descuento']) ? (int) $datosAseg['porce
   <a class="btn plano" href="<?= h(url('evidencia', ['id' => $cot['id'], 'parte' => 'peticion'])) ?>">Evidencia: petición</a>
   <a class="btn plano" href="<?= h(url('evidencia', ['id' => $cot['id'], 'parte' => 'respuesta'])) ?>">Evidencia: respuesta</a>
 </div>
+
+<script>
+// Un solo envío de "Ver otras formas de pago": el botón se bloquea mientras
+// Qualitas responde, y se rehabilita si se vuelve con "atrás".
+(function () {
+  document.querySelectorAll('form.form-un-envio').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      var btn = form.querySelector('button');
+      btn.disabled = true;
+      btn.textContent = 'Cotizando…';
+    });
+  });
+  window.addEventListener('pageshow', function () {
+    document.querySelectorAll('form.form-un-envio button').forEach(function (btn) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.texto;
+    });
+  });
+})();
+</script>

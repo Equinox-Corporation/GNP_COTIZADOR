@@ -129,7 +129,7 @@ $ambiente = strtoupper(Env::get('QUALITAS_AMBIENTE', 'QA'));
   </section>
 
   <div class="acciones">
-    <button class="btn primario">Cotizar con Qualitas</button>
+    <button class="btn primario" id="btn-cotizar" data-texto="Cotizar con Qualitas">Cotizar con Qualitas</button>
     <span class="aviso error" id="error-qualitas" hidden></span>
   </div>
 </form>
@@ -155,7 +155,21 @@ $ambiente = strtoupper(Env::get('QUALITAS_AMBIENTE', 'QA'));
       var caja = document.getElementById('error-qualitas');
       caja.textContent = msg;
       caja.hidden = false;
+      return;
     }
+    // Un solo envío: el botón se bloquea mientras Qualitas responde. El
+    // servidor igual rechaza un segundo envío del mismo formulario (SolicitudUnica).
+    var btn = document.getElementById('btn-cotizar');
+    btn.disabled = true;
+    btn.textContent = 'Cotizando…';
+  });
+
+  // Si se vuelve con "atrás" y el navegador muestra la página guardada, el
+  // botón no debe quedarse bloqueado.
+  window.addEventListener('pageshow', function () {
+    var btn = document.getElementById('btn-cotizar');
+    btn.disabled = false;
+    btn.textContent = btn.dataset.texto;
   });
 })();
 </script>
