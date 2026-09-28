@@ -1,0 +1,118 @@
+<Movimientos>
+	<Movimiento TipoMovimiento="2" NoPoliza="" NoCotizacion="" NoEndoso="" TipoEndoso="" NoOTra="" NoNegocio="08902">
+		<DatosAsegurado NoAsegurado="">
+			<Nombre/>
+			<Direccion/>
+			<Colonia/>
+			<Poblacion/>
+			<Estado>9</Estado>
+			<CodigoPostal>11590</CodigoPostal>
+			<NoEmpleado/>
+			<Agrupador/>
+		</DatosAsegurado>
+		<DatosVehiculo NoInciso="1">
+			<ClaveAmis>11333</ClaveAmis>
+			<Modelo>2026</Modelo>
+			<DescripcionVehiculo/>
+			<Uso>6</Uso>
+			<Servicio>1</Servicio>
+			<Paquete>1</Paquete>
+			<Motor/>
+			<Serie/>
+			<Coberturas NoCobertura="1">
+				<SumaAsegurada>0</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>5</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="3">
+				<SumaAsegurada>0</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>20</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="4">
+				<SumaAsegurada>3000000</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>0</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="5">
+				<SumaAsegurada>250000</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>0</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="6">
+				<SumaAsegurada>100000</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>0</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="7">
+				<SumaAsegurada>0</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>0</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="14">
+				<SumaAsegurada>0</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>0</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="31">
+				<SumaAsegurada>A|DESCRIPCION</SumaAsegurada>
+				<TipoSuma>0</TipoSuma>
+				<Deducible>0</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<Coberturas NoCobertura="47">
+				<SumaAsegurada>2000000</SumaAsegurada>
+				<TipoSuma>14</TipoSuma>
+				<Deducible>0</Deducible>
+				<Prima>0</Prima>
+			</Coberturas>
+			<ConsideracionesAdicionalesDV NoConsideracion="39">
+				<TipoRegla>0</TipoRegla>
+				<ValorRegla>N|S</ValorRegla>
+			</ConsideracionesAdicionalesDV>
+		</DatosVehiculo>
+		<DatosGenerales>
+			<FechaEmision>2026-08-29</FechaEmision>
+			<FechaInicio>2026-09-30</FechaInicio>
+			<FechaTermino>2027-09-30</FechaTermino>
+			<Moneda>0</Moneda>
+			<Agente>0008810</Agente>
+			<FormaPago>C</FormaPago>
+			<TarifaValores>LINEA</TarifaValores>
+			<TarifaCuotas>LINEA</TarifaCuotas>
+			<TarifaDerechos>LINEA</TarifaDerechos>
+			<Plazo/>
+			<Agencia/>
+			<Contrato/>
+			<PorcentajeDescuento>55</PorcentajeDescuento>
+			<ConsideracionesAdicionalesDG NoConsideracion="1">
+				<TipoRegla>0</TipoRegla>
+				<ValorRegla>5</ValorRegla>
+			</ConsideracionesAdicionalesDG>
+			<ConsideracionesAdicionalesDG NoConsideracion="4">
+				<TipoRegla>0</TipoRegla>
+				<ValorRegla>1</ValorRegla>
+			</ConsideracionesAdicionalesDG>
+			<ConsideracionesAdicionalesDG NoConsideracion="5">
+				<TipoRegla>0</TipoRegla>
+				<ValorRegla>14</ValorRegla>
+			</ConsideracionesAdicionalesDG>
+		</DatosGenerales>
+		<Primas>
+			<PrimaNeta/>
+			<Derecho>750</Derecho>
+			<Recargo/>
+			<Impuesto/>
+			<PrimaTotal/>
+			<Comision/>
+		</Primas>
+		<CodigoError/>
+	</Movimiento>
+</Movimientos>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SIMULADO. NO es una respuesta real de Qualitas.
+  Qualitas no ha entregado ningún ejemplo de respuesta: esta forma (SOAP 1.1,
+  <obtenerNuevaEmisionResult> con el XML de movimientos escapado como texto)
+  es la convención de ASP.NET, no algo documentado [PENDIENTE].
+  Los importes se tomaron del PDF de ejemplo de la Captiva sólo para que los
+  números sean verosímiles; la comisión es inventada. Sirve únicamente para
+  probar el parseo sin red.
+-->
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <soap:Body>
+    <obtenerNuevaEmisionResponse xmlns="http://qualitas.com.mx/">
+      <obtenerNuevaEmisionResult>&lt;Movimientos&gt;&lt;Movimiento TipoMovimiento="2" NoPoliza="" NoCotizacion="SIMULADO-0001" NoEndoso="" TipoEndoso="" NoOTra="" NoNegocio="08902"&gt;&lt;DatosVehiculo NoInciso="1"&gt;&lt;ClaveAmis&gt;21191&lt;/ClaveAmis&gt;&lt;Modelo&gt;2026&lt;/Modelo&gt;&lt;Paquete&gt;1&lt;/Paquete&gt;&lt;Coberturas NoCobertura="1"&gt;&lt;SumaAsegurada&gt;468000&lt;/SumaAsegurada&gt;&lt;TipoSuma&gt;0&lt;/TipoSuma&gt;&lt;Deducible&gt;5&lt;/Deducible&gt;&lt;Prima&gt;8086.34&lt;/Prima&gt;&lt;/Coberturas&gt;&lt;Coberturas NoCobertura="3"&gt;&lt;SumaAsegurada&gt;468000&lt;/SumaAsegurada&gt;&lt;TipoSuma&gt;0&lt;/TipoSuma&gt;&lt;Deducible&gt;10&lt;/Deducible&gt;&lt;Prima&gt;2036.20&lt;/Prima&gt;&lt;/Coberturas&gt;&lt;/DatosVehiculo&gt;&lt;Primas&gt;&lt;PrimaNeta&gt;8440.28&lt;/PrimaNeta&gt;&lt;Derecho&gt;750&lt;/Derecho&gt;&lt;Recargo&gt;-168.81&lt;/Recargo&gt;&lt;Impuesto&gt;1443.44&lt;/Impuesto&gt;&lt;PrimaTotal&gt;10464.91&lt;/PrimaTotal&gt;&lt;Comision&gt;999.99&lt;/Comision&gt;&lt;/Primas&gt;&lt;CodigoError /&gt;&lt;/Movimiento&gt;&lt;/Movimientos&gt;</obtenerNuevaEmisionResult>
+    </obtenerNuevaEmisionResponse>
+  </soap:Body>
+</soap:Envelope>

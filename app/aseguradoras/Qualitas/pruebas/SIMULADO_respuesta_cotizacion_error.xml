@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SIMULADO. NO es una respuesta real de Qualitas.
+  Mismo supuesto de forma que SIMULADO_respuesta_cotizacion_ok.xml [PENDIENTE].
+  El contenido de <CodigoError> (un marcador) lo reemplaza la prueba con
+  textos del catálogo CatalogoErroresSW.xlsx; el formato real (número solo,
+  número + texto…) no está documentado.
+-->
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <obtenerNuevaEmisionResponse xmlns="http://qualitas.com.mx/">
+      <obtenerNuevaEmisionResult>&lt;Movimientos&gt;&lt;Movimiento TipoMovimiento="2" NoPoliza="" NoCotizacion="" NoEndoso="" TipoEndoso="" NoOTra="" NoNegocio="08902"&gt;&lt;Primas&gt;&lt;PrimaNeta /&gt;&lt;Derecho&gt;750&lt;/Derecho&gt;&lt;Recargo /&gt;&lt;Impuesto /&gt;&lt;PrimaTotal /&gt;&lt;Comision /&gt;&lt;/Primas&gt;&lt;CodigoError&gt;__CODIGO__&lt;/CodigoError&gt;&lt;/Movimiento&gt;&lt;/Movimientos&gt;</obtenerNuevaEmisionResult>
+    </obtenerNuevaEmisionResponse>
+  </soap:Body>
+</soap:Envelope>

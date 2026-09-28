@@ -1,6 +1,6 @@
 # Qualitas — estado de la integración
 
-Documento operativo. Última revisión: _(Claude, 2026-09-25)_.
+Documento operativo. Última revisión: _(Claude, 2026-09-28)_.
 
 **Estado en la plataforma:** `PREPARADA`. A diferencia de HDI, **sí llegó el manual técnico** y trae ambiente de pruebas. Faltan datos de acceso (usuario del servicio de catálogo, confirmación de que el negocio 08902 está dado de alta para servicio web) y un ejemplo de respuesta. Alcanza para construir contra pruebas (QA); no alcanza para operar.
 
@@ -162,8 +162,129 @@ PRIMA NETA − PRONTO PAGO (2%) + GASTOS EXP.  = SUBTOTAL   ;  SUBTOTAL × 16%  
    - GNP no recibe descuento en la petición: no se le conecta.
    - El porcentaje usado se guarda en `datos_aseguradora_json` de la cotización, para que el historial explique el precio.
 2. **La comisión se muestra al usuario.** "Bajo su control": hoy el único control documentado es el **descuento**. No hay campo documentado para ceder o ajustar comisión; el error 179 ("La cesión de comisiones es mayor a la comisión") indica que el mecanismo existe, pero no cómo se manda `[PENDIENTE — preguntar a Qualitas]`. Tampoco está documentado si el descuento reduce la comisión `[PENDIENTE]`. El módulo muestra la comisión que devuelva Qualitas junto al precio y no la inventa ni la calcula.
+   - _(Albert, 2026-09-28)_ `Primas/Comision` es el **porcentaje** (11 en autos) y `Recibos/Comision` el **importe**. Se muestran los dos, tal como lleguen, y lo que falte dice "no disponible". Detalle en "Reglas verificadas", punto 7.
 3. **Pronto pago se aplica**: consideración 05 con 14 días (máximo permitido, error 192). Valor desde configuración.
+
+## Avance del módulo
+
+### Etapa 1 — cliente sin red _(Claude, 2026-09-28)_
+
+Nada de esto ha hablado con Qualitas. Todo lo que diga de la respuesta es `[PENDIENTE]`.
+
+| Archivo | Qué hace |
+|---|---|
+| `app/aseguradoras/Qualitas/QualitasXml.php` | Arma el XML de cotización (`TipoMovimiento="2"` fijo) y calcula el dígito AMIS |
+| `app/aseguradoras/Qualitas/QualitasClient.php` | SOAP 1.1 contra `WsEmision.asmx` y `wsTarifa.asmx`, candado doble, clasificación de estados, evidencia en `sys_llamadas` con `aseguradora='QUALITAS'` |
+| `app/aseguradoras/Qualitas/pruebas/prueba_sin_red.php` | 65 pruebas sin red: ningún cliente usa cURL, todos reciben un transporte falso |
+| `app/aseguradoras/Qualitas/pruebas/ejemplos/` | Copia de los 3 XML de "Ejemplos Qualitas" |
+| `app/aseguradoras/Qualitas/pruebas/SIMULADO_*.xml` | Respuestas **inventadas** para probar el parseo. No son de Qualitas |
+| `config/.env.local` · `config/.env.example` | Llaves `QUALITAS_*`. URL de producción, URL y namespace de `wsTarifa`, y usuario/tarifa de catálogo **vacíos** |
+
+**Candado doble.** Antes de cada envío: (1) método en lista permitida (`obtenerNuevaEmision`, `Test`, `HolamundoAux`, `listaMarcas`, `listaTarifas`); `EnviaMail` y `obtenerNuevaEmisionDXN` bloqueados; (2) `CandadoEmision::validarRuta()`; (3) candado por contenido: `TipoMovimiento` exactamente `"2"` en atributo o elemento, en todos los movimientos; `NoPoliza`, `NoEndoso` y `TipoEndoso` vacíos; consideración 04 presente e igual al ambiente; sin `DOCTYPE`/`ENTITY`; (4) se vuelve a revisar el parámetro dentro del sobre SOAP ya armado. La prueba comprueba que 16 variantes (entre ellas `TipoMovimiento` 3 y 4) lanzan `BLOQUEADO` y **no llegan al transporte**.
+
+**Comprobado sin red:** el XML generado para la Captiva, el Vento y la NP300 es igual en estructura y valores a los ejemplos (la Captiva, además, byte a byte, salvo saltos de línea). Dígito AMIS: 22374→4, 21191→8, 68133→9, 11333→5.
+
+**Supuestos del cliente** (los tres primeros ya se resolvieron en la Etapa 2, ver "Reglas verificadas"):
+
+- ~~Nombre del parámetro~~ → **`xmlEmision`** `[CONFIRMADO]` (sys_llamadas.id 122). `QUALITAS_WS_PARAMETRO=xmlEmision`.
+- ~~`SOAPAction`~~ → `http://qualitas.com.mx/obtenerNuevaEmision` `[CONFIRMADO]` (id 122, 123).
+- ~~Forma de la respuesta~~ → XML escapado como texto `[CONFIRMADO]` (id 123). El cliente sigue aceptando las dos formas.
+- **Formato de `<CodigoError>`.** La categoría la decide el número al inicio del texto (`"0310--…"` → 310). Sin número al inicio → `SISTEMA`, con el texto tal cual.
+- **Namespace de `wsTarifa`** (`QUALITAS_TARIFAS_NS`), no documentado. El parámetro `cCategoría` viene con acento en el manual; se manda `cCategoria`.
+- **`TipoRegla`** se manda `0` como en los ejemplos (el manual dice "vacío").
+- **Consideración 39** (`blindado|asistencia vial plus`): por omisión `N|S`, como los tres ejemplos.
+- **Cobertura 31** (daños por la carga): el ejemplo de la NP300 manda `A|DESCRIPCION`, que es la plantilla del manual sin llenar. El módulo la arma con el tipo y la descripción capturados.
 
 ## Reglas verificadas contra el servicio de Qualitas
 
-_Ninguna todavía._ Aquí se irán anotando, como ADR-005 para GNP, con etiqueta `[CONFIRMADO]` sólo cuando se hayan visto responder de verdad. Lo de arriba sale de documentos y PDF de ejemplo: es `[PENDIENTE]` hasta verlo en QA.
+Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, con su `sys_llamadas.id`. Lo que sale de documentos o de los PDF de ejemplo sigue `[PENDIENTE]`. La petición y la respuesta crudas de cada llamada están también en `docs/aseguradoras/qualitas/evidencia/`.
+
+### Llamadas de la Etapa 2 (QA, 2026-09-28, autorizadas por Albert: `Test`, WSDL y una cotización de la Captiva)
+
+| `sys_llamadas.id` | Qué | Resultado |
+|---|---|---|
+| 120 | `Test` | `RED`: "Could not resolve host". La petición **no salió del equipo**: la terminal Bash corre en un entorno aislado sin DNS. Windows sí resuelve `qa.qualitas.com.mx` (45.60.68.6, detrás de Imperva). Las llamadas siguientes se hicieron desde PowerShell |
+| 121 | `Test` | HTTP 500 con la página genérica de IIS ("The page cannot be displayed because an internal server error has occurred"). Explicado por la 122 |
+| 122 | `GET …/WsEmision.asmx?WSDL` | OK, 3,237 bytes |
+| 123 | `obtenerNuevaEmision`, Captiva 2026, AMIS 21191, CP 11590, Estado 9, Amplia, descuento 55, pronto pago 14 | **OK**, `NoCotizacion` 1219390564, 1,265 ms |
+
+### 1. El servicio en QA sólo tiene `obtenerNuevaEmision` `[CONFIRMADO]` (id 122, 121)
+
+El WSDL de QA no publica `Test`, `HolamundoAux`, `EnviaMail` ni `obtenerNuevaEmisionDXN`, que sí aparecen en la imagen del manual. Llamar a `Test` en QA devuelve un 500 de IIS, no un SOAP Fault. La conexión se comprueba con el WSDL, no con `Test`. Si esos métodos existen en producción no se sabe `[PENDIENTE]`.
+
+### 2. Firma del método `[CONFIRMADO]` (id 122, 123)
+
+- Parámetro único **`xmlEmision`** (cadena), namespace `http://qualitas.com.mx/`, SOAP 1.1 *document/literal*, `SOAPAction: "http://qualitas.com.mx/obtenerNuevaEmision"`.
+- La respuesta llega en **`obtenerNuevaEmisionResult` como texto**: el XML de movimientos escapado, con su propia declaración `<?xml …?>`.
+- El WSDL anuncia la dirección `https://qa.qualitas.com.mx/WsEmision/WsEmision.asmx`, **sin el puerto 8443** del manual. La llamada se hizo por `:8443` y funcionó. No se ha probado sin el puerto.
+
+### 3. Éxito = `<CodigoError/>` vacío `[CONFIRMADO]` (id 123)
+
+La cotización exitosa trae `<CodigoError/>` vacío y HTTP 200. Todavía no se ha visto un error de negocio, así que el formato de `<CodigoError>` con error sigue `[PENDIENTE]`.
+
+### 4. La respuesta regresa el movimiento completo, con datos cambiados `[CONFIRMADO]` (id 123)
+
+Qualitas devuelve el mismo `<Movimiento>` que se le mandó, rellenado. Además cambia varios valores:
+
+| Campo | Se mandó | Regresó |
+|---|---|---|
+| `NoCotizacion` | vacío | `1219390564` |
+| `NoOTra` | vacío | `3292805212P` |
+| `TipoEndoso` | vacío | **`21`** |
+| `NoNegocio` / `Agente` | `08902` / `0008810` | `8902` / `8810` (sin ceros) |
+| `NoInciso` | `1` | `0001` |
+| `TarifaValores/Cuotas/Derechos` | `LINEA` | `2608` |
+| DM y RT `SumaAsegurada` / `TipoSuma` | `0` / `0` | `468000` / **`2`** (el Anexo 6 no tiene tipo 2) |
+| Deducibles | `5`, `10` | `0005`, `00010` |
+| Cobertura 7 (GL) · 14 (AV) | suma `0` | `3000000` · `20000` |
+| Consideraciones DG | 1, 4, 5 | 1, 4, 5 **y 55, 56 vacías** |
+
+Consecuencia: **una respuesta no se puede reenviar como petición.** Trae `TipoEndoso="21"`, y el candado por contenido la bloquearía. Así debe ser.
+
+### 5. Dónde viene el precio `[CONFIRMADO]` (id 123)
+
+`<Primas>` trae el desglose, y la aritmética cuadra exacta:
+
+```
+PrimaNeta  +  Recargo  +  Derecho  +  Impuesto  =  PrimaTotal
+ 8,440.28  −   168.81  +   750.00  +  1,443.44  =  10,464.91  ✓
+Impuesto = 16% × (8,440.28 − 168.81 + 750.00) = 1,443.4352 → 1,443.44  ✓
+```
+
+- **Precio = `PrimaTotal`**: ya incluye pronto pago, derechos e IVA.
+- `PrimaTotal`, `PrimaNeta`, `Derecho`, `Impuesto` y el pronto pago son **idénticos al PDF de ejemplo de la Captiva** (23-sep): Importe total 10,464.91, prima neta 8,440.28, tasa fin. P.F. −168.81, gastos de expedición 750.00, IVA 1,443.44. Primera coincidencia para el punto 12 de ADR-010. Falta la comparación completa de la Etapa 6.
+
+### 6. El pronto pago llega en `Recargo`, en negativo `[CONFIRMADO]` (id 123)
+
+Con la consideración 05 = 14 días, `Recargo` = **−168.81** = −2% de la prima neta (−168.8056). No hay campo propio para el pronto pago: viene mezclado en `Recargo`, que el manual describe como "recargo por forma de pago fraccionada". Con una forma de pago fraccionada, `Recargo` podría traer las dos cosas juntas `[PENDIENTE]`.
+
+### 7. Dónde viene la comisión `[CONFIRMADO dónde viene]` (id 123) · qué significa: **confirmado por negocio (Albert, 2026-09-28)**
+
+Lo que se vio en el servicio (id 123):
+
+- `<Primas><Comision>` = **11**.
+- `<Recibos><Comision>` = **928.43**.
+- Aritmética: 8,440.28 × 11% = 928.4308 → 928.43. El importe del recibo es exactamente el 11% de la prima neta **antes** del pronto pago.
+
+Qué significa cada uno, **confirmado por negocio (Albert, 2026-09-28)**. No es una confirmación del servicio: el manual dice que `Primas/Comision` es "la comisión total".
+
+- `Primas/Comision` es el **porcentaje** de comisión, exclusivo de **automóviles**.
+- `Recibos/Comision` es el **importe**.
+
+Cómo se usa (Etapa 4 y 5):
+
+- **Al usuario se le muestran los dos**, porcentaje e importe, tal como vengan en cada respuesta. No se calculan ni se derivan: ni el importe a partir del porcentaje, ni al revés.
+- **El 11% es sólo de automóviles.** Nunca se asume 11 para otro tipo de vehículo. Para pick-up, camiones y motos el porcentaje sigue `[PENDIENTE]` hasta verlo en una respuesta real. La NP300 y la Vento de la Etapa 6 lo van a mostrar.
+- **Si no llega el porcentaje o el importe, se muestra "no disponible"**, nunca un valor por omisión.
+
+### 8. Formas de pago: una por llamada `[CONFIRMADO para contado · PENDIENTE las demás]` (id 123)
+
+Con `FormaPago` C llegó **un solo** `<Recibos NoRecibo="1">`, con los mismos importes que `<Primas>`. La respuesta no trae el desglose semestral ni trimestral que muestra el PDF. Para tener S/T/M habría que mandar otra cotización con esa forma de pago; no se ha probado.
+
+### 9. Primas por cobertura `[CONFIRMADO que vienen · no suman la neta]` (id 123)
+
+Cada `<Coberturas>` trae su `<Prima>`, y suman 17,844.35 contra una prima neta de 8,440.28, igual que en el PDF. **No se usa la suma de coberturas como precio.** Dónde se aplica el descuento sigue `[PENDIENTE]`.
+
+### 10. Lo que la respuesta no trae
+
+La vigencia de la cotización (7 días en el PDF) no viene en la respuesta. Sigue `[PENDIENTE]`.

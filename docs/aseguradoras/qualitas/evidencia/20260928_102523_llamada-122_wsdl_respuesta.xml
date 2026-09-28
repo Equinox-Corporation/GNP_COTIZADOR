@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wsdl:definitions xmlns:s="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:tns="http://qualitas.com.mx/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:tm="http://microsoft.com/wsdl/mime/textMatching/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" targetNamespace="http://qualitas.com.mx/" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">
+  <wsdl:types>
+    <s:schema elementFormDefault="qualified" targetNamespace="http://qualitas.com.mx/">
+      <s:element name="obtenerNuevaEmision">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="xmlEmision" type="s:string" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="obtenerNuevaEmisionResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="obtenerNuevaEmisionResult" type="s:string" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+    </s:schema>
+  </wsdl:types>
+  <wsdl:message name="obtenerNuevaEmisionSoapIn">
+    <wsdl:part name="parameters" element="tns:obtenerNuevaEmision" />
+  </wsdl:message>
+  <wsdl:message name="obtenerNuevaEmisionSoapOut">
+    <wsdl:part name="parameters" element="tns:obtenerNuevaEmisionResponse" />
+  </wsdl:message>
+  <wsdl:portType name="wsEmisionServiceSoap">
+    <wsdl:operation name="obtenerNuevaEmision">
+      <wsdl:input message="tns:obtenerNuevaEmisionSoapIn" />
+      <wsdl:output message="tns:obtenerNuevaEmisionSoapOut" />
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="wsEmisionServiceSoap" type="tns:wsEmisionServiceSoap">
+    <soap:binding transport="http://schemas.xmlsoap.org/soap/http" />
+    <wsdl:operation name="obtenerNuevaEmision">
+      <soap:operation soapAction="http://qualitas.com.mx/obtenerNuevaEmision" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:binding name="wsEmisionServiceSoap12" type="tns:wsEmisionServiceSoap">
+    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http" />
+    <wsdl:operation name="obtenerNuevaEmision">
+      <soap12:operation soapAction="http://qualitas.com.mx/obtenerNuevaEmision" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="wsEmisionService">
+    <wsdl:port name="wsEmisionServiceSoap" binding="tns:wsEmisionServiceSoap">
+      <soap:address location="https://qa.qualitas.com.mx/WsEmision/WsEmision.asmx" />
+    </wsdl:port>
+    <wsdl:port name="wsEmisionServiceSoap12" binding="tns:wsEmisionServiceSoap12">
+      <soap12:address location="https://qa.qualitas.com.mx/WsEmision/WsEmision.asmx" />
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>
