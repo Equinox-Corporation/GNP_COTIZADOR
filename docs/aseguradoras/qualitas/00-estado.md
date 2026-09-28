@@ -2,9 +2,11 @@
 
 Documento operativo. Última revisión: _(Claude, 2026-09-28)_.
 
-**Estado en la plataforma:** `PREPARADA`. A diferencia de HDI, **sí llegó el manual técnico** y trae ambiente de pruebas. Faltan datos de acceso (usuario del servicio de catálogo, confirmación de que el negocio 08902 está dado de alta para servicio web) y un ejemplo de respuesta. Alcanza para construir contra pruebas (QA); no alcanza para operar.
+**Estado en la plataforma:** `EN_INTEGRACION` desde el 2026-09-28 (decisión de Albert). Hay cliente con candado de emisión doble y una cotización real en QA que cuadra con el PDF de ejemplo (`sys_llamadas.id` 123). El cambio lo hace una migración idempotente en `Esquema::migrar()`, que sólo mueve a Qualitas desde `PREPARADA`. Se probó contra una copia de la base y después contra la real (respaldo `datos/cotizador_gnp.sqlite.bak_pre_en_integracion_20260928_110452`): sólo cambió la fila de Qualitas, y GNP quedó igual (40 cotizaciones, 118 llamadas).
 
-Pasa a `EN_INTEGRACION` cuando exista el cliente con su candado de emisión (ADR-010, punto 4) y se haya hecho la primera llamada a QA con respuesta real.
+Sigue faltando el usuario del catálogo (`cUsuario`/`cTarifa`) y la confirmación de que el negocio 08902 está dado de alta en producción. Pasa a `OPERATIVA` sólo con la lista del punto 12 de ADR-010 completa.
+
+_Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando existiera el cliente con su candado de emisión (ADR-010, punto 4) y se hubiera hecho la primera llamada a QA con respuesta real.
 
 ## Lo que se recibió
 

@@ -489,6 +489,15 @@ SQL);
             $pdo->exec("ALTER TABLE cot_cotizaciones ADD COLUMN datos_aseguradora_json TEXT NOT NULL DEFAULT '{}'");
         }
 
+        // 28-sep-2026: Qualitas pasa a EN_INTEGRACION (decisión de Albert).
+        // Ya tiene cliente con candado de emisión y cotizó en QA
+        // (sys_llamadas.id 123, docs/aseguradoras/qualitas/00-estado.md).
+        // Sólo mueve desde PREPARADA: nunca pisa un estado posterior
+        // (OPERATIVA, SUSPENDIDA) que alguien haya puesto a propósito. En una
+        // base nueva la fila todavía no existe aquí (semillas() corre después):
+        // la siguiente conexión la mueve.
+        $pdo->exec("UPDATE sys_aseguradoras SET estado = 'EN_INTEGRACION' WHERE clave = 'QUALITAS' AND estado = 'PREPARADA'");
+
         // v_cotizaciones necesita la columna aseguradora para poder filtrar el
         // historial por compañía (ADR-010 punto 6 de la Fase 1). CREATE VIEW
         // IF NOT EXISTS de arriba no toca una vista que ya existe, así que en
