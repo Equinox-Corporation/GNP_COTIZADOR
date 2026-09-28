@@ -353,6 +353,61 @@ Caso real: cotización **1219401257** (ids 136–139). Las pruebas que lo cubren
   - Comprobado por HTTP sobre una copia verificada: en el historial filtrado por Qualitas, "Ver" de la cotización 45 lleva a `?r=resultado&id=45`, que redirige a `?r=qualitas/resultado&id=45` (200). Ahí se ve el número Qualitas 1219401257 y "Descuento aplicado 55%".
 - Carga HTTP sobre una copia verificada con `verificar_copia_sin_red.php`: pantallas de GNP, Qualitas y descuentos con admin y no-admin, sin errores; los permisos no cambiaron.
 
+### Protección contra llamadas repetidas _(Claude, 2026-09-28; decisión de Albert: A + B ahora, C pospuesta, D descartada)_
+
+En producción cada llamada cuenta. Lo medido antes del cambio, sobre una copia verificada: recargar el resultado o volver con "atrás" no llamaba, pero **reenviar el formulario de cotizar sí duplicaba**, uno tras otro o dos a la vez.
+
+**A. Botón bloqueado al enviar** (`fd212f8`). "Cotizar" y "Ver otras formas de pago" se deshabilitan y dicen "Cotizando…".
+- Si la página vuelve con un error de captura, el botón vuelve habilitado.
+- Si se regresa con "atrás" y el navegador muestra la página guardada, `pageshow` lo rehabilita.
+- **Falta probarlo en un navegador:** el equipo no tiene Node y el JavaScript se revisó leyéndolo.
+
+**B. Token de un solo uso por formulario** (`7c179eb`): `app/plataforma/SolicitudUnica.php` y la tabla `sys_solicitudes`.
+- Cada formulario mostrado lleva un token nuevo, ligado al usuario. Al recibir el envío se marca "en curso" con un solo `UPDATE` condicionado: **sólo el primer envío llama a Qualitas**.
+- Qué pasa si el token llega otra vez:
+
+  | Caso | Llamadas | Qué ve el usuario |
+  |---|---|---|
+  | La primera terminó bien | 0 | Su cotización, con "Esta cotización ya se había enviado" |
+  | La primera sigue en curso | 0 | "Tu cotización se está procesando", con enlace al historial |
+  | La primera falló (error o red) | 0 | La cotización fallida, con "abre el formulario otra vez": el reintento es siempre una decisión consciente |
+  | La captura no pasó la revisión | 0 | El formulario otra vez, con un token nuevo |
+  | Venció, quedó interrumpida (más de 10 minutos en curso), es de otro usuario, de otra acción o inventado | 0 | El formulario otra vez, con un token nuevo |
+
+- **Vigencia:** el token vale **2 horas** desde que se muestra el formulario. Una petición en curso se da por interrumpida a los **10 minutos**: una llamada tarda 1.3 a 1.7 s, con tope de 60 s, y hay 3 paquetes como máximo.
+- **Limpieza** al emitir cada token: se borran los nunca usados un día después de vencer, y todos los demás a los 30 días. **Nunca toca cotizaciones.**
+- **Pruebas:** `prueba_solicitud_unica_sin_red.php`, 29 pruebas sin red con el conteo de llamadas en cada caso:
+
+  | Caso | Llamadas |
+  |---|---|
+  | Doble envío | 1 |
+  | Reenvío tras "atrás" | 0 extra |
+  | Dos pestañas con el mismo formulario | 1 entre las dos |
+  | Token de otro usuario | 0 |
+  | Token vencido | 0 |
+  | Formulario abierto de nuevo | 1 |
+  | Fallida | 0 al reenviar |
+  | Captura rechazada | 0 |
+  | Interrumpida | 0 |
+  | Tokens inválidos | 0 |
+
+  En el caso de las dos pestañas, la segunda se dispara **mientras la primera espera a Qualitas**. Se comprobó con una mutación que las pruebas fallan si el token se puede reusar.
+- **Por HTTP**, sobre una copia verificada: el reenvío del mismo formulario y dos envíos simultáneos dan **1 cotización y 1 llamada** (antes, 2 y 2).
+- **Migración:** probada en copia y aplicada a la real, con respaldo `bak_pre_qualitas_solicitudes_20260928_151954`. Sólo agregó `sys_solicitudes`.
+
+**"Ver otras formas de pago": el token de B no la cubre**, porque es otro formulario. Hoy la protegen tres cosas:
+- el botón bloqueado (A);
+- la comprobación "ya estaba cotizada" antes de llamar;
+- que la sesión atiende las peticiones una tras otra.
+
+Con eso, un segundo envío **después de uno exitoso hace 0 llamadas**. El hueco es **después de uno fallido**: el reenvío vuelve a intentar las formas que faltan (hasta 3 llamadas) sin que el usuario lo decida. Si se quiere la misma regla que en "Cotizar", haría falta **su propio token**, con la misma clase y `accion = 'formas_pago'`: unas 15 líneas y 3 pruebas. No se implementó; queda a decisión de Albert.
+
+**C. Riesgo aceptado** (Albert, 2026-09-28; no se implementa): dos sesiones distintas que pulsen "Ver otras formas de pago" sobre la misma cotización al mismo tiempo pueden hacer **hasta 3 llamadas de más**. Se revisa si alguna vez aparece en `sys_llamadas`: dos llamadas de la misma forma de pago y la misma cotización con segundos de diferencia.
+
+**D. Descartada:** rechazar la misma captura dentro de N segundos bloquea repeticiones legítimas.
+
+**GNP tiene el mismo hueco de reenvío** en su formulario de cotizar. No se midió y no se tocó. Cuando B esté probado en Qualitas, aplicarlo a GNP es una decisión aparte, con su regresión.
+
 ## Lista para pasar a `OPERATIVA` (ADR-010, punto 12) _(Claude, 2026-09-28)_
 
 | Condición de ADR-010 | Estado | Base |
@@ -368,7 +423,8 @@ Caso real: cotización **1219401257** (ids 136–139). Las pruebas que lo cubren
 
 - [ ] **Descripción del vehículo para el cliente.** Hoy la pantalla y el PDF dicen "Clave AMIS 21191 · modelo 2026"; el cliente necesita marca, modelo y versión. Llega con el catálogo (Etapa 3).
 - [ ] **Validación de negocio de pick-up** (comisión como camión, descuento como auto): pendiente de Albert con Operaciones o con Qualitas.
-- [ ] **Protección contra llamadas repetidas** (recarga, atrás, doble clic): hoy volver a enviar el formulario de cotizar repite las llamadas. Propuesta entregada a Albert el 2026-09-28; pendiente de decisión. Tiene que estar resuelta antes de `OPERATIVA`.
+- [x] **Protección contra llamadas repetidas en "Cotizar"**: A + B implementadas y probadas sin red (2026-09-28). Falta probar A en un navegador. C es riesgo aceptado.
+- [ ] **"Ver otras formas de pago" tras un envío fallido** puede reintentar sin decisión del usuario: ¿token propio? Pendiente de decisión.
 - [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo (aviso de comisión anómala, pendiente de la Etapa 3).
 - [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
