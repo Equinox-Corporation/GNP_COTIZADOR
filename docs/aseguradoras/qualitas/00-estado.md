@@ -349,7 +349,8 @@ Caso real: cotización **1219401257** (ids 136–139). Las pruebas que lo cubren
 - **Regla: la comisión NUNCA aparece en el PDF** (Albert, 2026-09-28). El PDF es un documento para el cliente; la comisión sólo se ve en la pantalla, que es para administradores.
   - Una prueba falla si el PDF trae la palabra "comisión", el porcentaje o cualquiera de los importes (928.43, 464.21, 232.10, 77.36).
   - Se comprobó metiendo la comisión al PDF a propósito: la prueba la detectó.
-- **Historial: el descuento no se muestra `[PENDIENTE: decisión]`.** Mostrarlo exige tocar `app/vistas/historial.php`, que es una vista de GNP, y la regla 3 lo prohíbe sin plantearlo antes.
+- **Historial: el descuento se consulta en el resultado y el PDF, no en el historial** (decisión de Albert, 2026-09-28). `historial.php` es la vista común de la plataforma: una columna que en GNP siempre queda vacía no se justifica, y cada compañía traería la suya. Si algún día hacen falta datos propios de cada compañía en el historial, se diseña una columna "Detalle" común, con ADR.
+  - Comprobado por HTTP sobre una copia verificada: en el historial filtrado por Qualitas, "Ver" de la cotización 45 lleva a `?r=resultado&id=45`, que redirige a `?r=qualitas/resultado&id=45` (200). Ahí se ve el número Qualitas 1219401257 y "Descuento aplicado 55%".
 - Carga HTTP sobre una copia verificada con `verificar_copia_sin_red.php`: pantallas de GNP, Qualitas y descuentos con admin y no-admin, sin errores; los permisos no cambiaron.
 
 ## Lista para pasar a `OPERATIVA` (ADR-010, punto 12) _(Claude, 2026-09-28)_
@@ -367,7 +368,7 @@ Caso real: cotización **1219401257** (ids 136–139). Las pruebas que lo cubren
 
 - [ ] **Descripción del vehículo para el cliente.** Hoy la pantalla y el PDF dicen "Clave AMIS 21191 · modelo 2026"; el cliente necesita marca, modelo y versión. Llega con el catálogo (Etapa 3).
 - [ ] **Validación de negocio de pick-up** (comisión como camión, descuento como auto): pendiente de Albert con Operaciones o con Qualitas.
-- [ ] **Descuento en el historial:** mostrarlo exige tocar la vista de historial de GNP. Pendiente de decisión.
+- [ ] **Protección contra llamadas repetidas** (recarga, atrás, doble clic): hoy volver a enviar el formulario de cotizar repite las llamadas. Propuesta entregada a Albert el 2026-09-28; pendiente de decisión. Tiene que estar resuelta antes de `OPERATIVA`.
 - [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo (aviso de comisión anómala, pendiente de la Etapa 3).
 - [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
@@ -561,11 +562,10 @@ Albert cotizó en el navegador (`?r=qualitas`, Apache) la Captiva Amplia (AMIS 2
 
 - **Contado (id 136): total 10,464.91, igual que la id 127.** Prima neta 8,440.28 · `Recargo` −168.81 · derecho 750 · IVA 1,443.44 · comisión 11 / 928.43.
 - Semestral (137), trimestral (138) y mensual (139) salieron cada una como su propia llamada, ligadas a la cotización 45.
-- En `sys_llamadas` hay además:
-  - una corrida idéntica, cotización 43, folio 1219400074, ids 131–134, **mismos importes al centavo**;
-  - una en `RED`, cotización 44, id 135: "Could not resolve host", no llegó a Qualitas.
-
-  En total, **8 llamadas llegaron a QA** contra las 4 autorizadas: el flujo se hizo dos veces.
+- **Fueron dos pruebas de Albert, no una falla del sistema** (Albert, 2026-09-28):
+  - **Cotización 43** (folio 1219400074, ids 131–134): primera prueba completa. La computadora se trabó antes de que Albert guardara la evidencia. Queda como **repetición autorizada**, con **los mismos importes al centavo que la 45**: el precio de Qualitas se repitió igual en dos cotizaciones.
+  - **Cotización 44** (id 135, `RED`, "Could not resolve host"): el intento que se cortó con el equipo trabado. No llegó a Qualitas.
+  - **Cotización 45** (ids 136–139): la prueba repetida completa, la que se documenta aquí.
 - La evidencia cruda de 136–139 se exportó de `sys_llamadas` a `evidencia/` (`*_pantalla_captiva_{C,S,T,M}_*`), porque las llamadas desde la pantalla no escriben archivos.
 
 ### 16. Formas de pago `[CONFIRMADO]` (ids 136–139)
