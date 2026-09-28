@@ -374,7 +374,7 @@ En producción cada llamada cuenta. Lo medido antes del cambio, sobre una copia 
   | La captura no pasó la revisión | 0 | El formulario otra vez, con un token nuevo |
   | Venció, quedó interrumpida (más de 10 minutos en curso), es de otro usuario, de otra acción o inventado | 0 | El formulario otra vez, con un token nuevo |
 
-- **Vigencia:** el token vale **2 horas** desde que se muestra el formulario. Una petición en curso se da por interrumpida a los **10 minutos**: una llamada tarda 1.3 a 1.7 s, con tope de 60 s, y hay 3 paquetes como máximo.
+- **Vencimientos aprobados por Albert (2026-09-28):** el token vale **2 horas** desde que se muestra el formulario. Una petición en curso se da por interrumpida a los **10 minutos**: una llamada tarda 1.3 a 1.7 s, con tope de 60 s, y hay 3 paquetes como máximo.
 - **Limpieza** al emitir cada token: se borran los nunca usados un día después de vencer, y todos los demás a los 30 días. **Nunca toca cotizaciones.**
 - **Pruebas:** `prueba_solicitud_unica_sin_red.php`, 29 pruebas sin red con el conteo de llamadas en cada caso:
 
@@ -395,12 +395,17 @@ En producción cada llamada cuenta. Lo medido antes del cambio, sobre una copia 
 - **Por HTTP**, sobre una copia verificada: el reenvío del mismo formulario y dos envíos simultáneos dan **1 cotización y 1 llamada** (antes, 2 y 2).
 - **Migración:** probada en copia y aplicada a la real, con respaldo `bak_pre_qualitas_solicitudes_20260928_151954`. Sólo agregó `sys_solicitudes`.
 
-**"Ver otras formas de pago": el token de B no la cubre**, porque es otro formulario. Hoy la protegen tres cosas:
-- el botón bloqueado (A);
-- la comprobación "ya estaba cotizada" antes de llamar;
-- que la sesión atiende las peticiones una tras otra.
-
-Con eso, un segundo envío **después de uno exitoso hace 0 llamadas**. El hueco es **después de uno fallido**: el reenvío vuelve a intentar las formas que faltan (hasta 3 llamadas) sin que el usuario lo decida. Si se quiere la misma regla que en "Cotizar", haría falta **su propio token**, con la misma clase y `accion = 'formas_pago'`: unas 15 líneas y 3 pruebas. No se implementó; queda a decisión de Albert.
+**"Ver otras formas de pago": su propio token** (`64b7e95`, decisión de Albert, 2026-09-28). Misma regla que "Cotizar", con la misma clase:
+- Cada botón que muestra la pantalla de resultado lleva su token, ligado al usuario y a **su resultado** (`accion = formas_pago:<id>`). No sirve para otro resultado ni para otro usuario.
+- Si el primer envío falló, el reenvío **no reintenta**: "recarga la página y pulsa otra vez". Con el botón nuevo **sólo se cotizan las formas que faltan**.
+- Con S, T y M ya cotizadas no se emite token y no hay botón.
+- **Pruebas sin red**, con las respuestas reales 136–139:
+  - doble envío: **3 llamadas en total, no 6**;
+  - reenvío tras falla: **0**;
+  - botón nuevo tras falla: **sólo T y M, 2 llamadas**;
+  - token de otro usuario o de otro resultado: 0.
+  Se comprobó con una mutación que fallan si el token se puede reusar.
+- **Por HTTP** sobre una copia verificada, sin servidor de Qualitas: primer envío 3 llamadas, reenvío 0, recargar y pulsar 3.
 
 **C. Riesgo aceptado** (Albert, 2026-09-28; no se implementa): dos sesiones distintas que pulsen "Ver otras formas de pago" sobre la misma cotización al mismo tiempo pueden hacer **hasta 3 llamadas de más**. Se revisa si alguna vez aparece en `sys_llamadas`: dos llamadas de la misma forma de pago y la misma cotización con segundos de diferencia.
 
@@ -424,7 +429,8 @@ Con eso, un segundo envío **después de uno exitoso hace 0 llamadas**. El hueco
 - [ ] **Descripción del vehículo para el cliente.** Hoy la pantalla y el PDF dicen "Clave AMIS 21191 · modelo 2026"; el cliente necesita marca, modelo y versión. Llega con el catálogo (Etapa 3).
 - [ ] **Validación de negocio de pick-up** (comisión como camión, descuento como auto): pendiente de Albert con Operaciones o con Qualitas.
 - [x] **Protección contra llamadas repetidas en "Cotizar"**: A + B implementadas y probadas sin red (2026-09-28). Falta probar A en un navegador. C es riesgo aceptado.
-- [ ] **"Ver otras formas de pago" tras un envío fallido** puede reintentar sin decisión del usuario: ¿token propio? Pendiente de decisión.
+- [x] **"Ver otras formas de pago"** con su propio token: tras una falla no reintenta sin que el usuario lo decida (`64b7e95`).
+- [ ] **Prueba de A y B en el navegador contra QA** (Albert): hasta 4 llamadas autorizadas.
 - [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo (aviso de comisión anómala, pendiente de la Etapa 3).
 - [ ] **Confirmación de Qualitas** de que el negocio 08902 / agente 0008810 está habilitado en **producción**.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
