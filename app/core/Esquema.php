@@ -11,7 +11,132 @@ declare(strict_types=1);
  */
 final class Esquema
 {
-    public static function asegurar(PDO $pdo): void
+    /**
+     * Crea y migra la base. Corre en cada apertura (Db::get()).
+     *
+     * Respaldo automático (Albert, 2026-09-29, docs/adr/ADR-003): con
+     * $archivo —la base de la aplicación, la que abre Db::get()— y cambios
+     * pendientes, primero se respalda en
+     * "<archivo>.bak_auto_pre_migracion_AAAAMMDD_HHMMSS", se comprueba que el
+     * respaldo quedó completo y sólo entonces se migra. Si el respaldo falla,
+     * no se aplica nada y se lanza el error. Sin cambios pendientes no hay
+     * respaldo. Sin $archivo (bases temporales de las pruebas) no se respalda.
+     *
+     * "Cambios pendientes" = este archivo cambió desde la última vez que se
+     * aplicó a esa base (huella guardada en sys_esquema, dentro de la misma
+     * base: una base restaurada de un respaldo viejo también cuenta).
+     */
+    public static function asegurar(PDO $pdo, ?string $archivo = null, ?string $dirRespaldos = null): void
+    {
+        $candado = null;
+        $huella  = null;
+        if ($archivo !== null && is_file($archivo)) {
+            $huella = self::huella();
+            if (self::huellaAplicada($pdo) !== $huella) {
+                // Dos peticiones a la vez: sólo una respalda y migra; la otra
+                // espera y vuelve a revisar.
+                $candado = fopen(sys_get_temp_dir() . '/cotizador_migracion_' . md5((string) realpath($archivo)) . '.lock', 'c');
+                if ($candado === false || !flock($candado, LOCK_EX)) {
+                    throw new RuntimeException('No se aplicó la migración de la base: no se pudo tomar el candado de migración.');
+                }
+                if (self::huellaAplicada($pdo) === $huella) {
+                    $huella = null;
+                } elseif (self::tieneTablas($pdo)) {
+                    self::respaldar($pdo, $archivo, $dirRespaldos ?? dirname($archivo));
+                }
+            } else {
+                $huella = null;
+            }
+        }
+        try {
+            self::aplicar($pdo);
+            if ($huella !== null) {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS sys_esquema (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    huella TEXT NOT NULL,
+                    aplicado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
+                $pdo->prepare("INSERT INTO sys_esquema (id, huella, aplicado_en) VALUES (1, ?, datetime('now','localtime'))
+                               ON CONFLICT (id) DO UPDATE SET huella = excluded.huella, aplicado_en = excluded.aplicado_en")
+                    ->execute([$huella]);
+            }
+        } finally {
+            if ($candado !== null) {
+                flock($candado, LOCK_UN);
+                fclose($candado);
+            }
+        }
+    }
+
+    /** Huella de este archivo, sin importar los saltos de línea (git los cambia en Windows). */
+    private static function huella(): string
+    {
+        return hash('sha256', str_replace("\r\n", "\n", (string) file_get_contents(__FILE__)));
+    }
+
+    private static function huellaAplicada(PDO $pdo): ?string
+    {
+        if (!self::existeTabla($pdo, 'sys_esquema')) {
+            return null;
+        }
+        $h = $pdo->query('SELECT huella FROM sys_esquema WHERE id = 1')->fetchColumn();
+        return $h === false ? null : (string) $h;
+    }
+
+    private static function tieneTablas(PDO $pdo): bool
+    {
+        return (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'")->fetchColumn() > 0;
+    }
+
+    /**
+     * Copia completa y consistente con VACUUM INTO (incluye lo que esté en el
+     * WAL). Se comprueba abriéndola: quick_check "ok" y las mismas tablas con
+     * el mismo número de filas. Nunca sobrescribe un archivo existente.
+     */
+    private static function respaldar(PDO $pdo, string $archivo, string $dir): string
+    {
+        $nombre  = rtrim($dir, '/\\') . '/' . basename($archivo) . '.bak_auto_pre_migracion_' . date('Ymd_His');
+        $destino = $nombre;
+        for ($n = 2; file_exists($destino) && $n <= 9; $n++) {
+            $destino = "{$nombre}_{$n}";   // dos migraciones en el mismo segundo
+        }
+        $falla = static function (string $motivo) use ($destino): never {
+            throw new RuntimeException("No se aplicó la migración de la base: falló el respaldo automático ({$destino}): {$motivo}. La base quedó sin cambios.");
+        };
+        if (file_exists($destino)) {
+            $falla('ya existen archivos con ese nombre');
+        }
+        if (!is_dir($dir) || !is_writable($dir)) {
+            $falla('no se puede escribir en la carpeta');
+        }
+        try {
+            $pdo->exec('VACUUM INTO ' . $pdo->quote($destino));
+        } catch (PDOException $e) {
+            $falla($e->getMessage());
+        }
+        try {
+            $copia = new PDO('sqlite:' . $destino, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            if ((string) $copia->query('PRAGMA quick_check')->fetchColumn() !== 'ok') {
+                $falla('el respaldo no pasó quick_check (incompleto: no usarlo)');
+            }
+            $conteo = static function (PDO $p): array {
+                $r = [];
+                foreach ($p->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN) as $t) {
+                    $r[$t] = (int) $p->query('SELECT COUNT(*) FROM "' . str_replace('"', '""', $t) . '"')->fetchColumn();
+                }
+                return $r;
+            };
+            if ($conteo($copia) !== $conteo($pdo)) {
+                $falla('el respaldo no tiene las mismas tablas y filas que la base (incompleto: no usarlo)');
+            }
+            $copia = null;
+        } catch (PDOException $e) {
+            $falla('no se pudo abrir el respaldo para comprobarlo: ' . $e->getMessage());
+        }
+        return $destino;
+    }
+
+    /** Tablas, migraciones y semillas; todo idempotente. */
+    private static function aplicar(PDO $pdo): void
     {
         $pdo->exec(<<<SQL
 

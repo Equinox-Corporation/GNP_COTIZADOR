@@ -33,7 +33,7 @@ final class Db
         self::$pdo->exec('PRAGMA foreign_keys = ON');
         self::$pdo->exec('PRAGMA busy_timeout = 5000');
 
-        Esquema::asegurar(self::$pdo);
+        Esquema::asegurar(self::$pdo, $ruta);   // con la ruta: respaldo automático si hay migración pendiente
 
         return self::$pdo;
     }
