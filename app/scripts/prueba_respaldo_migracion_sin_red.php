@@ -154,6 +154,54 @@ Db::get();
 ok(count($respaldos($tmp)) === 1, 'Al abrir por Db::get() con migración pendiente, respalda primero');
 ok($huella(Db::get()) !== null, 'y registra la huella');
 
+echo "\n6. Retención: se conservan los últimos " . Esquema::RESPALDOS_A_CONSERVAR . " respaldos automáticos\n";
+$ret = "{$dir}/ret.sqlite";
+$pr = $abrir($ret);
+Esquema::asegurar($pr, $ret);
+$viejos = [];
+for ($i = 1; $i <= 12; $i++) {   // 12 respaldos automáticos viejos de ESTA base (2020-01-01 … 2020-01-12)
+    $viejos[] = $v = sprintf('%s.bak_auto_pre_migracion_202001%02d_120000', $ret, $i);
+    file_put_contents($v, "viejo {$i}");
+}
+file_put_contents($viejos[11] . '_2', 'viejo 12, segundo del mismo segundo');
+$ajenos = [
+    "{$ret}.bak_pre_importar_20200101_120000",                // respaldo manual
+    "{$dir}/otra.sqlite.bak_auto_pre_migracion_20200101_120000", // de otra base
+    "{$ret}.bak_auto_pre_migracion_20200101_120000.txt",      // nombre parecido
+    "{$ret}.bak_auto_pre_migracion_manual",                   // nombre parecido
+    "{$ret}.bak_auto_pre_migracion_20200101_1200",            // fecha incompleta
+];
+foreach ($ajenos as $x) {
+    file_put_contents($x, 'no tocar');
+}
+$propios = static fn (): array => array_values(array_filter($respaldos($ret), static fn ($f) => preg_match('/\.bak_auto_pre_migracion_\d{8}_\d{6}(_\d)?$/', $f) === 1));
+
+// Sin cambios pendientes: no respalda y tampoco poda.
+Esquema::asegurar($pr, $ret);
+ok(count($propios()) === 13, 'Sin cambios pendientes: no se borra nada (13 siguen ahí)', (string) count($propios()));
+
+// Si el respaldo falla: no migra y tampoco poda.
+$pr->exec("UPDATE sys_esquema SET huella = 'vieja'");
+try {
+    Esquema::asegurar($pr, $ret, "{$dir}/no_existe");
+} catch (RuntimeException) {
+}
+ok(count($propios()) === 13, 'Si el respaldo falla: no se borra nada');
+
+// Con cambios pendientes: respalda, y quedan los 10 más recientes (9 viejos + el nuevo).
+Esquema::asegurar($pr, $ret);
+$quedan = $propios();
+sort($quedan);
+$nuevo = end($quedan);
+ok(count($quedan) === Esquema::RESPALDOS_A_CONSERVAR, 'Quedan exactamente ' . Esquema::RESPALDOS_A_CONSERVAR, implode(', ', array_map('basename', $quedan)));
+ok(!str_contains((string) $nuevo, '_2020') && (string) file_get_contents((string) $nuevo) !== '' && str_starts_with((string) file_get_contents((string) $nuevo), 'SQLite format 3'),
+    'El respaldo nuevo es uno de ellos (y es una base SQLite de verdad)');
+ok(!is_file($viejos[0]) && !is_file($viejos[1]) && !is_file($viejos[2]) && !is_file($viejos[3]) && is_file($viejos[4]) && is_file($viejos[11] . '_2'),
+    'Se borraron los 4 más viejos (01 a 04); del 05 en adelante siguen, incluido el _2');
+ok(array_filter($ajenos, static fn ($x) => !is_file($x) || file_get_contents($x) !== 'no tocar') === [],
+    'No tocó ningún otro archivo: respaldo manual, otra base ni nombres parecidos');
+ok(count($respaldos($base)) >= 1 && count($respaldos($tmp)) === 1, 'Los respaldos automáticos de las otras bases de esta prueba siguen ahí');
+
 echo "\n───────────────────────────────────────────────────────────────────\n";
 echo $fallas === 0 ? " {$total} pruebas, todas bien.\n" : " {$fallas} de {$total} pruebas FALLARON.\n";
 exit($fallas === 0 ? 0 : 1);

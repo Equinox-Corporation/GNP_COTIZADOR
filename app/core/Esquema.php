@@ -11,6 +11,9 @@ declare(strict_types=1);
  */
 final class Esquema
 {
+    /** Respaldos automáticos que se conservan por base (Albert, 2026-09-29). */
+    public const RESPALDOS_A_CONSERVAR = 10;
+
     /**
      * Crea y migra la base. Corre en cada apertura (Db::get()).
      *
@@ -43,6 +46,7 @@ final class Esquema
                     $huella = null;
                 } elseif (self::tieneTablas($pdo)) {
                     self::respaldar($pdo, $archivo, $dirRespaldos ?? dirname($archivo));
+                    self::podarRespaldos($archivo, $dirRespaldos ?? dirname($archivo));
                 }
             } else {
                 $huella = null;
@@ -133,6 +137,35 @@ final class Esquema
             $falla('no se pudo abrir el respaldo para comprobarlo: ' . $e->getMessage());
         }
         return $destino;
+    }
+
+    /**
+     * Retención: después de un respaldo comprobado, deja sólo los
+     * RESPALDOS_A_CONSERVAR más recientes de ESTA base con el patrón exacto
+     * "<archivo>.bak_auto_pre_migracion_AAAAMMDD_HHMMSS[_N]". Nunca toca otros
+     * .bak (los manuales bak_pre_*, los de otras bases, nombres parecidos). El
+     * orden es el del nombre, que lleva la fecha. Si un archivo no se puede
+     * borrar, se deja: la migración ya tiene su respaldo y no se detiene.
+     *
+     * @return list<string> los que se borraron
+     */
+    private static function podarRespaldos(string $archivo, string $dir): array
+    {
+        $patron = '/^' . preg_quote(basename($archivo), '/') . '\.bak_auto_pre_migracion_\d{8}_\d{6}(?:_[2-9])?$/';
+        $propios = [];
+        foreach (scandir($dir) ?: [] as $n) {
+            if (preg_match($patron, $n) === 1 && is_file("{$dir}/{$n}")) {
+                $propios[] = $n;
+            }
+        }
+        sort($propios, SORT_STRING);
+        $borrados = [];
+        foreach (array_slice($propios, 0, max(0, count($propios) - self::RESPALDOS_A_CONSERVAR)) as $n) {
+            if (@unlink("{$dir}/{$n}")) {
+                $borrados[] = $n;
+            }
+        }
+        return $borrados;
     }
 
     /** Tablas, migraciones y semillas; todo idempotente. */
