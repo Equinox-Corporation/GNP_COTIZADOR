@@ -23,6 +23,9 @@ declare(strict_types=1);
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-vento            --autorizado
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-captiva-limitada --autorizado
  *
+ * Moto en semestral: el PDF de la Vento sólo ofrece contado; ¿Qualitas la cotiza en semestral?
+ *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-vento-semestral --autorizado
+ *
  * Consideración 40 (SEPOMEX), seguida de cotizar-captiva en la misma sesión:
  *   php app/aseguradoras/Qualitas/pruebas/llamada_qa.php cotizar-captiva-cp40 --municipio=NNN --colonia=NNNN --autorizado
  *
@@ -148,14 +151,23 @@ switch ($que) {
     case 'cotizar-vento':
     case 'error-descuento-60':
     case 'cotizar-captiva-cp40':
+    case 'cotizar-vento-semestral':
         $esError = $que === 'error-descuento-60';
         $esCp40  = $que === 'cotizar-captiva-cp40';
-        $ej = $ejemplos[($esError || $esCp40) ? 'cotizar-captiva' : $que];
+        $esSemestral = $que === 'cotizar-vento-semestral';
+        $ej = $ejemplos[($esError || $esCp40) ? 'cotizar-captiva' : ($esSemestral ? 'cotizar-vento' : $que)];
         $datos = $ej['datos'] + ['estado' => '9', 'uso' => '1', 'servicio' => '1', 'forma_pago' => 'C'];
         if ($esError) {
             // Fuera del rango del negocio (0-55) a propósito, para ver el formato real de
             // <CodigoError> (id 126). Este script no usa RangoDescuento; el módulo sí lo aplica.
             $datos['porcentaje_descuento'] = 60;
+        }
+        if ($esSemestral) {
+            // La misma Vento del ejemplo, sólo cambia FormaPago a S. Su PDF sólo ofrece contado:
+            // si Qualitas la rechaza, "Ver otras formas de pago" no debe ofrecerse a motos.
+            $datos['forma_pago'] = 'S';
+            $ej['titulo'] .= ' en SEMESTRAL';
+            $ej['archivo'] = 'cotizar_vento_semestral';
         }
         if ($esCp40) {
             // La misma Captiva, más la consideración 40 (códigos SEPOMEX de municipio y
@@ -188,8 +200,16 @@ switch ($que) {
         if ($mov !== null) {
             echo '  NoCotizacion = ' . ($mov['no_cotizacion'] ?: '—') . ' · recibos: ' . count($mov['recibos'])
                . ' · comisión del recibo: ' . ($mov['recibos'][0]['Comision'] ?? 'no disponible') . "\n";
-            if (!$esError && $r['estado'] === QualitasClient::OK) {
+            if (!$esError && !$esSemestral && $r['estado'] === QualitasClient::OK) {
                 $comparar($mov['primas'], $ej['pdf']);
+            }
+            if ($esSemestral) {
+                echo '  total anual = ' . ($mov['primas']['PrimaTotal'] ?? '—') . ' (contado en el PDF: 7,956.90)' . "
+";
+                foreach ($mov['recibos'] as $rc) {
+                    printf("  recibo %s · %s a %s · total %s
+", $rc['@NoRecibo'] ?? '?', $rc['FechaInicio'] ?? '?', $rc['FechaTermino'] ?? '?', $rc['PrimaTotal'] ?? '?');
+                }
             }
         }
         $guardar($r, $esError ? 'error_descuento_60' : $ej['archivo']);
@@ -230,6 +250,6 @@ switch ($que) {
         break;
 
     default:
-        fwrite(STDERR, "Uso: llamada_qa.php test|wsdl|error-descuento-60|cotizar-captiva|cotizar-np300|cotizar-vento|cotizar-captiva-limitada|cotizar-captiva-cp40 [--municipio=NNN --colonia=NNNN] --autorizado\n");
+        fwrite(STDERR, "Uso: llamada_qa.php test|wsdl|error-descuento-60|cotizar-captiva|cotizar-np300|cotizar-vento|cotizar-captiva-limitada|cotizar-vento-semestral|cotizar-captiva-cp40 [--municipio=NNN --colonia=NNNN] --autorizado\n");
         exit(1);
 }
