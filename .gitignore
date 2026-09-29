@@ -15,3 +15,16 @@ datos/*.bak_*
 # Si agregas un CSV nuevo como insumo (p.ej. tarifa HDI en Etapa 3), súmalo aquí también.
 !datos/coberturas_gnp.csv
 !datos/paquetes_gnp_matriz.csv
+
+# SEPOMEX de Correos de México: licencia de uso propio, sin distribución (Albert, 2026-09-29).
+# Ni el ZIP original ni lo que se extraiga de él entran al repositorio, en ninguna carpeta.
+[Cc][Pp]_[Cc][Oo][Nn][Ss]*
+**/SEPOMEX/
+*sepomex*.csv
+*sepomex*.txt
+*sepomex*.zip
+*SEPOMEX*.csv
+*SEPOMEX*.txt
+*SEPOMEX*.zip
+CPdescarga*
+*.[Dd][Bb][Ff]
