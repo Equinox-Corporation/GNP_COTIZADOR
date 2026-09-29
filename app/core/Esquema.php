@@ -521,6 +521,67 @@ CREATE TABLE IF NOT EXISTS sys_solicitudes (
 CREATE INDEX IF NOT EXISTS ix_solicitudes_creada ON sys_solicitudes (creada_en);
 SQL);
 
+        // 29-sep-2026: catálogo provisional de vehículos de Qualitas (diseño
+        // aprobado por Albert, docs/aseguradoras/qualitas/00-estado.md, Etapa 3).
+        // fuente PORTAL_MANUAL = capturado del portal de Qualitas; WSTARIFA =
+        // descargado de wsTarifa cuando Qualitas entregue cUsuario/cTarifa. La
+        // pantalla prefiere WSTARIFA. tipo_vehiculo queda vacío hasta que
+        // Qualitas confirme qué dato lo dice. Sólo agregar.
+        //
+        // cat_qua_referencias_portal guarda aparte lo que el portal cotizó
+        // (coberturas con suma, deducible y prima; importes; formas de pago),
+        // para compararlo contra el servicio en las pruebas reales. No alimenta
+        // la cotización.
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS cat_qua_vehiculos (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    amis           TEXT    NOT NULL,                -- 5 dígitos (el dígito verificador lo calcula QualitasXml)
+    modelo         INTEGER NOT NULL,
+    marca          TEXT    NOT NULL,
+    linea          TEXT    NOT NULL,
+    version        TEXT    NOT NULL,
+    tipo_vehiculo  TEXT    NULL,                    -- vacío hasta que Qualitas confirme el dato
+    fuente         TEXT    NOT NULL CHECK (fuente IN ('PORTAL_MANUAL', 'WSTARIFA')),
+    fecha_fuente   TEXT    NOT NULL DEFAULT '',
+    submarca_id    TEXT    NULL,                    -- catálogo maestro (ADR-004), opcional
+    activo         INTEGER NOT NULL DEFAULT 1,
+    cargado_en     TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (amis, modelo, fuente)
+);
+CREATE INDEX IF NOT EXISTS ix_qua_veh_cascada ON cat_qua_vehiculos (fuente, activo, marca, linea, modelo);
+
+CREATE TABLE IF NOT EXISTS cat_qua_referencias_portal (
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    amis                      TEXT    NOT NULL,
+    modelo                    INTEGER NOT NULL,
+    uso                       TEXT    NOT NULL DEFAULT '',
+    paquete                   TEXT    NOT NULL DEFAULT '',
+    forma_pago                TEXT    NOT NULL DEFAULT '',
+    descuento_pct             TEXT    NOT NULL DEFAULT '',
+    cp                        TEXT    NOT NULL DEFAULT '',
+    estado                    TEXT    NOT NULL DEFAULT '',
+    pronto_pago_dias          TEXT    NOT NULL DEFAULT '',
+    coberturas_json           TEXT    NOT NULL DEFAULT '[]',   -- [{cobertura, suma, deducible, prima}]
+    prima_neta                REAL    NULL,
+    tasa_fin_pf               REAL    NULL,
+    gtos_exped_pol            REAL    NULL,
+    subtotal                  REAL    NULL,
+    iva                       REAL    NULL,
+    importe_total             REAL    NULL,
+    comision_pct              REAL    NULL,
+    comision_importe          REAL    NULL,
+    formas_pago_json          TEXT    NOT NULL DEFAULT '{}',   -- {S:{primer,siguientes}, T:{...}}
+    tarifa_aplicada           TEXT    NOT NULL DEFAULT '',
+    numero_cotizacion_portal  TEXT    NOT NULL DEFAULT '',
+    fecha_cotizacion          TEXT    NOT NULL DEFAULT '',
+    archivo_origen            TEXT    NOT NULL DEFAULT '',
+    fila_origen               INTEGER NULL,
+    notas                     TEXT    NOT NULL DEFAULT '',
+    importado_en              TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (amis, modelo, uso, paquete, forma_pago, descuento_pct, cp)
+);
+SQL);
+
         // v_cotizaciones necesita la columna aseguradora para poder filtrar el
         // historial por compañía (ADR-010 punto 6 de la Fase 1). CREATE VIEW
         // IF NOT EXISTS de arriba no toca una vista que ya existe, así que en

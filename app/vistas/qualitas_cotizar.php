@@ -9,6 +9,13 @@ $v = static fn (string $k, string $omision = ''): string => (string) ($previo[$k
 $paqPrevios = array_map('intval', (array) ($previo['paquetes'] ?? []));
 $dedPrevios = (array) ($previo['deducibles'] ?? []);
 $ambiente = strtoupper(Env::get('QUALITAS_AMBIENTE', 'QA'));
+// Catálogo de vehículos (cascada marca → línea → año → versión). Se pide aquí
+// y no en la ruta porque public/index.php no se toca mientras se decide qué
+// pasa con los commits de Beto en esta rama (01-ruta-critica.md, paso 11).
+// Sin filas cargadas, la pantalla funciona como antes: AMIS y modelo a mano.
+$catalogo = QualitasServicio::catalogoVehiculos();
+$hayCatalogo = $catalogo['vehiculos'] !== [];
+$nombreFuente = ['PORTAL_MANUAL' => 'portal de Qualitas', 'WSTARIFA' => 'wsTarifa de Qualitas'][$catalogo['fuente'] ?? ''] ?? '';
 ?>
 
 <h1>Cotizar con Qualitas</h1>
@@ -21,10 +28,17 @@ $ambiente = strtoupper(Env::get('QUALITAS_AMBIENTE', 'QA'));
   </div>
 <?php endif; ?>
 
+<?php if (!$hayCatalogo): ?>
 <div class="aviso alerta">
   <strong>Catálogo de vehículos pendiente.</strong> Qualitas todavía no entrega el usuario del servicio de catálogo,
   así que la clave AMIS y el modelo se escriben a mano. Revisa la clave: si no corresponde al vehículo, Qualitas cotiza otro.
 </div>
+<?php elseif ($catalogo['provisional']): ?>
+<div class="aviso alerta" id="aviso-catalogo">
+  <strong>Catálogo provisional (<?= h($nombreFuente) ?>, <?= h($catalogo['fecha']) ?>): verifica la versión.</strong>
+  Tiene sólo los vehículos cotizados en el portal. Si el tuyo no está, escribe la clave AMIS y el modelo a mano.
+</div>
+<?php endif; ?>
 
 <?php if ($error !== ''): ?>
   <div class="aviso error"><?= h($error) ?></div>
@@ -36,13 +50,23 @@ $ambiente = strtoupper(Env::get('QUALITAS_AMBIENTE', 'QA'));
 
   <section class="tarjeta">
     <h2>Vehículo</h2>
+    <?php if ($hayCatalogo): ?>
+    <div class="rejilla" id="cascada-vehiculo">
+      <label>Marca <select id="cat-marca"><option value="">— elige —</option></select></label>
+      <label>Línea <select id="cat-linea" disabled><option value="">—</option></select></label>
+      <label>Año <select id="cat-anio" disabled><option value="">—</option></select></label>
+      <label>Versión <select id="cat-version" disabled><option value="">—</option></select>
+        <span class="ayuda">Al elegir la versión se llenan la clave AMIS y el modelo.</span>
+      </label>
+    </div>
+    <?php endif; ?>
     <div class="rejilla">
       <label>Clave AMIS
-        <input name="clave_vehiculo" required inputmode="numeric" pattern="\d{1,5}" maxlength="5" value="<?= h($v('clave_vehiculo')) ?>">
-        <span class="ayuda">Hasta 5 dígitos. El dígito verificador lo calcula el sistema.</span>
+        <input name="clave_vehiculo" id="clave_vehiculo" required inputmode="numeric" pattern="\d{1,5}" maxlength="5" value="<?= h($v('clave_vehiculo')) ?>">
+        <span class="ayuda">Hasta 5 dígitos. El dígito verificador lo calcula el sistema.<?= $hayCatalogo && $catalogo['provisional'] ? ' Se puede corregir a mano mientras el catálogo sea provisional.' : '' ?></span>
       </label>
       <label>Modelo (año)
-        <input name="modelo" required inputmode="numeric" pattern="\d{4}" maxlength="4" value="<?= h($v('modelo')) ?>">
+        <input name="modelo" id="modelo" required inputmode="numeric" pattern="\d{4}" maxlength="4" value="<?= h($v('modelo')) ?>">
       </label>
       <label>Uso
         <select name="uso" id="uso">
@@ -134,6 +158,60 @@ $ambiente = strtoupper(Env::get('QUALITAS_AMBIENTE', 'QA'));
     <span class="aviso error" id="error-qualitas" hidden></span>
   </div>
 </form>
+
+<?php if ($hayCatalogo): ?>
+<script>
+// Cascada marca → línea → año → versión. Los datos vienen dentro de la página
+// (catálogo provisional, chico). Todo pasa por opciones(nivel, filtro): cuando
+// llegue wsTarifa sólo cambia de dónde salen las opciones, no la pantalla.
+(function () {
+  var vehiculos = <?= json_encode($catalogo['vehiculos'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  var niveles = ['marca', 'linea', 'anio', 'version'];
+  var sel = {};
+  niveles.forEach(function (n) { sel[n] = document.getElementById('cat-' + n); });
+
+  function opciones(nivel, f) {
+    var vistos = {}, lista = [];
+    vehiculos.forEach(function (v) {
+      if (f.marca && v.marca !== f.marca) { return; }
+      if (f.linea && v.linea !== f.linea) { return; }
+      if (f.anio && String(v.modelo) !== f.anio) { return; }
+      var valor = nivel === 'marca' ? v.marca : nivel === 'linea' ? v.linea : nivel === 'anio' ? String(v.modelo) : v.amis;
+      var texto = nivel === 'version' ? v.version + ' · AMIS ' + v.amis : valor;
+      if (!vistos[valor]) { vistos[valor] = true; lista.push({ valor: valor, texto: texto }); }
+    });
+    return nivel === 'anio' ? lista.sort(function (a, b) { return b.valor - a.valor; }) : lista;
+  }
+  function llenar(nivel, f) {
+    var s = sel[nivel];
+    s.innerHTML = '<option value="">— elige —</option>';
+    opciones(nivel, f).forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o.valor; op.textContent = o.texto; s.appendChild(op);
+    });
+    s.disabled = false;
+  }
+  function limpiarDesde(i) {
+    for (var j = i; j < niveles.length; j++) {
+      sel[niveles[j]].innerHTML = '<option value="">—</option>';
+      sel[niveles[j]].disabled = true;
+    }
+  }
+  function filtro() {
+    return { marca: sel.marca.value, linea: sel.linea.value, anio: sel.anio.value };
+  }
+  llenar('marca', {});
+  sel.marca.addEventListener('change', function () { limpiarDesde(1); if (sel.marca.value) { llenar('linea', filtro()); } });
+  sel.linea.addEventListener('change', function () { limpiarDesde(2); if (sel.linea.value) { llenar('anio', filtro()); } });
+  sel.anio.addEventListener('change', function () { limpiarDesde(3); if (sel.anio.value) { llenar('version', filtro()); } });
+  sel.version.addEventListener('change', function () {
+    if (!sel.version.value) { return; }
+    document.getElementById('clave_vehiculo').value = sel.version.value;   // la AMIS sigue visible y editable
+    document.getElementById('modelo').value = sel.anio.value;
+  });
+})();
+</script>
+<?php endif; ?>
 
 <script>
 (function () {

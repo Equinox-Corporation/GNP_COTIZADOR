@@ -182,7 +182,10 @@ final class AseguradoraQualitas implements CotizadorAseguradora
             'Número de cotización Qualitas' => (string) ($c['no_cotizacion'] ?? $cotizacion['folio'] ?? ''),
             'Fecha'                         => (string) ($cotizacion['creada_en'] ?? date('Y-m-d H:i')),
             'Vigencia de la cotización'     => self::VIGENCIA_DIAS . ' días' . (!empty($cotizacion['vence_en']) ? ' (hasta ' . $cotizacion['vence_en'] . ')' : ''),
-            'Vehículo'                      => 'Clave AMIS ' . $cotizacion['clave_vehiculo'] . ' · modelo ' . $cotizacion['modelo'],
+            // Del catálogo (marca, línea, versión) cuando el vehículo está ahí; si no, la clave AMIS.
+            'Vehículo'                      => (string) ($cotizacion['descripcion_veh'] ?? '') !== ''
+                ? (string) $cotizacion['descripcion_veh']
+                : 'Clave AMIS ' . $cotizacion['clave_vehiculo'] . ' · modelo ' . $cotizacion['modelo'],
             'Código postal · estado'        => $cotizacion['conductor_cp'] . ' · ' . (self::ESTADOS[(int) ($d['estado'] ?? 0)] ?? 'no disponible'),
             'Paquete'                       => (string) $paquete['paquete'],
             'Forma de pago'                 => self::FORMAS_PAGO[(string) ($c['forma_pago'] ?? 'C')] ?? (string) ($c['forma_pago'] ?? ''),

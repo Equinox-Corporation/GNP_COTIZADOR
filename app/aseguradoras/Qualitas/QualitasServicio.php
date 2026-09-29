@@ -72,6 +72,13 @@ final class QualitasServicio
         ], static fn ($v): bool => $v !== '');
         $deducibles = array_filter(array_map('strval', (array) ($captura['deducibles'] ?? [])), static fn ($v): bool => $v !== '');
 
+        // Descripción del vehículo: del catálogo (buscada aquí por AMIS y modelo,
+        // no confiada al navegador); si no está, como antes.
+        $veh = self::vehiculoCatalogo($amis, (int) $modelo);
+        $descripcion = $veh !== null
+            ? "{$veh['marca']} {$veh['linea']} {$veh['version']} {$modelo} · AMIS {$amis}"
+            : "Clave AMIS {$amis} · {$modelo}";
+
         $hoy = new DateTimeImmutable('today');
         $pdo->prepare(
             "INSERT INTO cot_cotizaciones
@@ -80,7 +87,7 @@ final class QualitasServicio
                  aseguradora, clave_vehiculo, datos_aseguradora_json)
              VALUES ('BORRADOR', ?, '', '', '', '', ?, ?, '', ?, ?, 'C', ?, ?, ?, 'QUALITAS', ?, ?)"
         )->execute([
-            $usuarioId, (int) $modelo, "Clave AMIS {$amis} · {$modelo}",
+            $usuarioId, (int) $modelo, $descripcion,
             $cp, $cp,
             $hoy->format('Y-m-d'), $hoy->modify('+1 year')->format('Y-m-d'),
             $hoy->modify('+' . AseguradoraQualitas::VIGENCIA_DIAS . ' days')->format('Y-m-d'),
@@ -90,7 +97,7 @@ final class QualitasServicio
                 'paquetes'       => array_values(array_map('intval', (array) $captura['paquetes'])),
                 // Para que el historial explique el precio: qué rango regía al cotizar.
                 'rango_descuento' => $rango,
-            ], JSON_UNESCAPED_UNICODE),
+            ] + ($veh !== null ? ['vehiculo_catalogo' => ['fuente' => $veh['fuente'], 'fecha_fuente' => $veh['fecha_fuente']]] : []), JSON_UNESCAPED_UNICODE),
         ]);
         $cotId = (int) $pdo->lastInsertId();
 
@@ -118,6 +125,64 @@ final class QualitasServicio
             ->execute([$folio !== '' ? $folio : null, $avisos !== [] ? implode(' · ', $avisos) : null, $cotId]);
 
         return ['ok' => true, 'cotizacion_id' => $cotId, 'mensaje' => implode(' ', $avisos)];
+    }
+
+    /**
+     * Fuente vigente del catálogo de vehículos: WSTARIFA en cuanto haya filas
+     * activas de wsTarifa; mientras no, PORTAL_MANUAL (provisional). null si
+     * no hay ninguna fila: la pantalla funciona como antes (AMIS a mano).
+     */
+    public static function fuenteCatalogo(): ?string
+    {
+        $f = Db::valor(
+            "SELECT fuente FROM cat_qua_vehiculos WHERE activo = 1
+              ORDER BY CASE fuente WHEN 'WSTARIFA' THEN 0 ELSE 1 END LIMIT 1"
+        );
+        return $f === null ? null : (string) $f;
+    }
+
+    /**
+     * El catálogo para la cascada de la pantalla (marca → línea → año →
+     * versión), sólo de la fuente vigente.
+     *
+     * Hoy va completo dentro de la página: el catálogo provisional es chico.
+     * Cuando llegue wsTarifa (miles de filas) se cambia el proveedor de datos
+     * por una consulta por niveles, sin rehacer la pantalla: el JavaScript
+     * sólo pide "opciones de este nivel".
+     *
+     * @return array{fuente:?string, fecha:string, provisional:bool, vehiculos:list<array{amis:string, modelo:int, marca:string, linea:string, version:string}>}
+     */
+    public static function catalogoVehiculos(): array
+    {
+        $fuente = self::fuenteCatalogo();
+        if ($fuente === null) {
+            return ['fuente' => null, 'fecha' => '', 'provisional' => true, 'vehiculos' => []];
+        }
+        $filas = Db::todos(
+            'SELECT amis, modelo, marca, linea, version FROM cat_qua_vehiculos
+              WHERE activo = 1 AND fuente = ? ORDER BY marca, linea, modelo DESC, version',
+            [$fuente]
+        );
+        return [
+            'fuente'      => $fuente,
+            'fecha'       => (string) Db::valor('SELECT MAX(fecha_fuente) FROM cat_qua_vehiculos WHERE activo = 1 AND fuente = ?', [$fuente]),
+            'provisional' => $fuente !== 'WSTARIFA',
+            'vehiculos'   => array_map(static fn (array $f): array => [
+                'amis' => (string) $f['amis'], 'modelo' => (int) $f['modelo'],
+                'marca' => (string) $f['marca'], 'linea' => (string) $f['linea'], 'version' => (string) $f['version'],
+            ], $filas),
+        ];
+    }
+
+    /** El vehículo del catálogo para una AMIS y modelo, prefiriendo WSTARIFA. null si no está. */
+    public static function vehiculoCatalogo(string $amis, int $modelo): ?array
+    {
+        return Db::uno(
+            "SELECT amis, modelo, marca, linea, version, fuente, fecha_fuente FROM cat_qua_vehiculos
+              WHERE activo = 1 AND amis = ? AND modelo = ?
+              ORDER BY CASE fuente WHEN 'WSTARIFA' THEN 0 ELSE 1 END LIMIT 1",
+            [str_pad($amis, 5, '0', STR_PAD_LEFT), $modelo]
+        );
     }
 
     /** Captura de la pantalla de Qualitas a partir del POST (lo que antes armaba la ruta). */
@@ -228,7 +293,7 @@ final class QualitasServicio
         }
         $datos = json_decode((string) $fila['datos_aseguradora_json'], true) ?: [];
         $deducibles = (array) ($datos['deducibles'] ?? []);
-        unset($datos['deducibles'], $datos['paquetes'], $datos['rango_descuento']);
+        unset($datos['deducibles'], $datos['paquetes'], $datos['rango_descuento'], $datos['vehiculo_catalogo']);
         $datos['forma_pago'] = $forma;
 
         $modulo ??= new AseguradoraQualitas(null, $pdo);
