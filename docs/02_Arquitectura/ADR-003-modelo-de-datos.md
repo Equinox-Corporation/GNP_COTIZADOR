@@ -143,6 +143,8 @@ Es deliberado: se separó para poder terminar la homologación sin arriesgar el 
 - No cubre `cat_comercial.db`.
 - No borra respaldos viejos: cada cambio de `Esquema.php` deja un archivo de ~18 MB en `datos/`. La retención queda pendiente, junto con la de los `.bak_pre_*` manuales.
 
+> _(Albert, 2026-09-29; hecho en `6256c5b`)_ — **Retención de los respaldos automáticos.** Después de cada respaldo automático comprobado se conservan los **10 más recientes** de esa base y se borran los más viejos. Sólo cuentan los que tienen el patrón exacto `<archivo>.bak_auto_pre_migracion_AAAAMMDD_HHMMSS[_N]`. **Nunca se tocan otros `.bak`**: ni los manuales `bak_pre_*`, ni los de otra base, ni los de nombre parecido. Si no hubo respaldo nuevo (sin cambios pendientes, o el respaldo falló), no se borra nada. Probado sin red en `prueba_respaldo_migracion_sin_red.php`, sección 6. Los `.bak_pre_*` manuales siguen sin política.
+
 ## 🧩 Modelo de datos
 
 El corazón del asunto es esta cadena:
@@ -201,7 +203,7 @@ El corazón del asunto es esta cadena:
 
 - Conectar `homologacion_gnp` a `CatalogoServicio` y `CotizacionServicio`.
 - Política de respaldo y retención de `cat_comercial.db`.
-- Retención de los respaldos automáticos `datos/*.bak_auto_pre_migracion_*` (punto 6) y de los `.bak_pre_*` manuales de `datos/`. _(Claude, 2026-09-29)_
+- Retención de los respaldos automáticos `datos/*.bak_auto_pre_migracion_*` (punto 6) y de los `.bak_pre_*` manuales de `datos/`. _(Claude, 2026-09-29)_ — _Automáticos: hecho, se conservan los últimos 10 (`6256c5b`). Manuales: pendiente._
 - Actualizar `cat_comercial_diseño.md` con los números reales y las rutas correctas.
 - Revisar los 45 casos de confianza 80 y los 18 pares de `gemelas_por_confirmar.csv`.
 

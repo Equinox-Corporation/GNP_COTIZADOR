@@ -15,8 +15,8 @@ _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando exi
 - **Esperando a Albert:**
   1. **Archivo de SEPOMEX** en `Proyectos\Qualitas_Cotizador\SEPOMEX\`. Con él se leen los códigos de municipio y colonia del CP 11590 y se entregan los 2 comandos autorizados, `cotizar-captiva` y `cotizar-captiva-cp40`, seguidos y en la misma sesión.
   2. **Datos del portal de Qualitas** de los 8 vehículos, en `plantilla_captura_portal.csv`. Con ellos se construye `cat_qua_vehiculos` (diseño aprobado, sección "Etapa 3").
-  3. _(2026-09-29)_ **Aprobar el CSV de los 3 vehículos de "Ejemplos Qualitas"** para cargarlos como catálogo provisional y probar la cascada en el navegador.
-  4. _(2026-09-29)_ **Correr `cotizar-vento-semestral`** (1 llamada a QA, autorizada): ¿Qualitas cotiza una moto en semestral?
+  3. _(2026-09-29)_ ~~Aprobar el CSV de los 3 vehículos~~ → aprobado e importado. **Albert prueba la cascada en el navegador.**
+  4. _(2026-09-29)_ **Salidas de las 3 llamadas a QA que corre Albert**: `cotizar-captiva`, `cotizar-captiva-cp40 --municipio=016 --colonia=1838` y `cotizar-vento-semestral`.
      _2026-09-29:_ `cat_qua_vehiculos` ya está construido (vacío). Los datos llegan como **PDF de Operaciones** en `Proyectos\Qualitas_Cotizador\Portal\`: se extraen a CSV, Albert lo revisa y después se importa.
 - **Esperando a Qualitas:** `cUsuario`/`cTarifa` del catálogo (wsTarifa), y la liberación del negocio cuando se valide en QA.
 - **Última llamada registrada de Qualitas:** `sys_llamadas.id` 139. Evidencia en `evidencia/`.
@@ -376,6 +376,12 @@ Probado así:
   - **Las 30 salieron iguales**: mismo código HTTP y mismo contenido, salvo los tokens de sesión. Sin errores en los registros de los servidores y sin llamadas nuevas en `sys_llamadas`.
   - La copia B hizo **un solo** respaldo, en la primera petición, sin `sys_esquema` (es decir, anterior a la migración). Las otras 29 peticiones no respaldaron.
 - **Base real:** la aplicación en XAMPP sirve este mismo árbol, así que la primera petición después de este cambio saca el primer respaldo automático, porque la base real todavía no tiene `sys_esquema`. Es lo esperado.
+  - _Confirmado:_ el primer respaldo automático de la base real lo hizo una petición de la aplicación: `datos/cotizador_gnp.sqlite.bak_auto_pre_migracion_20260929_145917`.
+- **Retención** _(Albert, 2026-09-29; `6256c5b`)_:
+  - se conservan los 10 respaldos automáticos más recientes de cada base; los más viejos se borran;
+  - sólo los de ese patrón exacto, nunca otros `.bak`;
+  - sin respaldo nuevo, no se borra nada;
+  - 7 pruebas sin red más (24 en total).
 
 #### Postalia: descartada para Qualitas _(Albert, 2026-09-29)_
 
@@ -394,6 +400,37 @@ Probado así:
 - El CSV sale del extractor, a partir de los 3 PDF, y es igual a las 3 primeras filas de `pruebas/ejemplos/portal_ejemplo.csv`.
 - **Pendiente de su aprobación.** Después: respaldo e `importar_portal_qualitas.php --aplicar` (fuente `PORTAL_MANUAL`).
 
+**Importado** _(Albert lo aprobó el 2026-09-29)_:
+
+- **Respaldo previo:** `datos/cotizador_gnp.sqlite.bak_pre_importar_ejemplos_20260929_145947`.
+- **Resultado:** 3 vehículos y 3 referencias, con fuente `PORTAL_MANUAL` y fecha 2026-09-23. Reimportar da "sin cambios".
+- **Se encontraron y corrigieron dos fallas del importador** al hacerlo (`b850d34`):
+  - Sin `--fecha-fuente`, tomaba la fecha de **hoy** en vez de la de la cotización del portal. El aviso habría dicho "2026-09-29".
+  - Al reimportar no corregía la fecha: la comparación ignoraba `fecha_fuente` y `activo`.
+  - Se reimportó y quedó 2026-09-23. Hay 2 pruebas nuevas; con el código anterior fallan 6.
+- **Lo que Albert debe ver en `?r=qualitas`:**
+  - Aviso: "Catálogo provisional (portal de Qualitas, 2026-09-23): verifica la versión."
+  - Marcas: CHEVROLET, NISSAN, VENTO. Líneas: CAPTIVA, NP300, TORNADO. Año: 2026.
+  - Versiones: "PREMIER B · AMIS 21191", "DOBLE CAB S 3P L4 · AMIS 11333", "300 300CC · AMIS 68133".
+  - Al elegir la versión se llenan la AMIS y el modelo, y los dos siguen editables. El uso Carga de la NP300 se elige a mano.
+
+**"MO" es el código de marca corta de Qualitas para motos** _(Albert, 2026-09-29)_. Lo usa wsTarifa, en `listaMarcas`.
+
+- El PDF de la Vento dice "MO VENTO TORNADO 300 300CC". Quitar el "MO" para dejar marca, línea y versión es correcto.
+- **Servirá para inferir `tipo_vehiculo` = MOTO** cuando llegue el catálogo de wsTarifa: descuento por tipo y, si aplica, formas de pago.
+- `[PENDIENTE]`: qué es "CT" (Captiva) y qué código traen los camiones y las pick-up. Lo dirá `listaMarcas`.
+
+#### SEPOMEX: archivo de Correos confirmado _(Albert, 2026-09-29)_
+
+- **Origen:** `CP_CONS.ZIP` de Correos de México. Albert lo desempacó sin ejecutar nada: `SISTEMA3.EXE` es un autoextraíble LHa, se abrió con lhasa y las tablas DBF se exportaron a CSV.
+- **Archivo leído en sólo lectura:** `Proyectos\Qualitas_Cotizador\SEPOMEX\sepomex_cp_20260925.csv`.
+  - 15,660,689 bytes, UTF-8 sin BOM, fin de línea CRLF.
+  - **159,331 asentamientos**; `fecha_actualiza` va del 2006-11-06 al **2026-09-25**.
+  - 13 campos, con los nombres del TXT oficial: `d_codigo, d_asenta, d_tipo_asenta, D_mnpio, d_estado, d_ciudad, c_estado, c_tipo_asenta, c_mnpio, id_asenta_cpcons, d_zona, c_cve_ciudad, fecha_actualiza`.
+- **CP 11590, confirmado:** `c_estado` `09`, `c_mnpio` `016` (MIGUEL HIDALGO), `id_asenta_cpcons` `1838` (ANZURES, COLONIA; es el único asentamiento del CP). `llamada_qa.php` y `QualitasXml` los mandan como texto, así que los ceros a la izquierda llegan tal cual (`<ValorRegla>016</ValorRegla>`).
+- **Licencia de Correos: uso propio, sin distribución.** Ni el ZIP ni el CSV entran a git. `.gitignore` ignora `CP_CONS.*`, las carpetas `SEPOMEX/`, `*sepomex*.{csv,txt,zip}`, `CPdescarga*` y `*.DBF` (`583174c`).
+- **Será la fuente de `ref_sepomex`**, que no se construye hasta ver el resultado de las 2 llamadas de la consideración 40.
+
 #### Motos y formas de pago: Vento en semestral _(Albert, 2026-09-29)_
 
 - El PDF de la Vento sólo ofrece contado. Para saber si Qualitas cotiza una moto en semestral se agregó a `llamada_qa.php` el subcomando `cotizar-vento-semestral`.
@@ -405,6 +442,9 @@ Probado así:
   2. Mostrarlo en la tabla de formas de pago como "Semestral: Qualitas no la ofrece para este vehículo (texto)".
   3. No volver a pedir una forma ya rechazada. El botón desaparece cuando no queda ninguna por pedir.
   4. Cuando `tipo_vehiculo` se llene (wsTarifa) y Qualitas confirme la regla, no ofrecer el botón a motos desde el principio.
+- **Decisión de Albert (2026-09-29):**
+  - Aprobados los pasos 1, 2 y 3. **Se construyen sólo si Qualitas rechaza la Vento en semestral.**
+  - El paso 4 espera al catálogo.
 
 #### Consideración 40 (SEPOMEX): primera parte hecha _(Claude, 2026-09-28)_
 
