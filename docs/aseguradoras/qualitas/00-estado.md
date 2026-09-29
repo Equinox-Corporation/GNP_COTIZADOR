@@ -15,6 +15,7 @@ _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando exi
 - **Esperando a Albert:**
   1. **Archivo de SEPOMEX** en `Proyectos\Qualitas_Cotizador\SEPOMEX\`. Con él se leen los códigos de municipio y colonia del CP 11590 y se entregan los 2 comandos autorizados, `cotizar-captiva` y `cotizar-captiva-cp40`, seguidos y en la misma sesión.
   2. **Datos del portal de Qualitas** de los 8 vehículos, en `plantilla_captura_portal.csv`. Con ellos se construye `cat_qua_vehiculos` (diseño aprobado, sección "Etapa 3").
+     _2026-09-29:_ `cat_qua_vehiculos` ya está construido (vacío). Los datos llegan como **PDF de Operaciones** en `Proyectos\Qualitas_Cotizador\Portal\`: se extraen a CSV, Albert lo revisa y después se importa.
 - **Esperando a Qualitas:** `cUsuario`/`cTarifa` del catálogo (wsTarifa), y la liberación del negocio cuando se valide en QA.
 - **Última llamada registrada de Qualitas:** `sys_llamadas.id` 139. Evidencia en `evidencia/`.
 - **Pruebas sin red, todas en verde:**
@@ -24,6 +25,8 @@ _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando exi
   | `prueba_sin_red.php` | 75 |
   | `prueba_etapa4_sin_red.php` | 130 |
   | `prueba_solicitud_unica_sin_red.php` | 42 |
+  | `prueba_catalogo_sin_red.php` _(2026-09-29)_ | 35 |
+  | `prueba_extractor_pdf_sin_red.php` _(2026-09-29)_ | 41 |
 
 - **Reglas de trabajo** (`docs/aseguradoras/00-reglas-de-trabajo.md`): el `.env` nunca se imprime, y toda copia se verifica con `app/scripts/verificar_copia_sin_red.php` antes de levantarla.
 
@@ -313,6 +316,44 @@ Primero hacen falta los datos del portal.
 - El ejemplo de Qualitas de la Vento (moto) manda Gastos Médicos 100,000; el módulo manda 250,000 fijo, sacado del ejemplo de la Captiva.
 - Si el portal lo confirma, **las sumas por omisión deberán depender del tipo de vehículo**, igual que el tope de descuento.
 - Los camiones pueden pedir además datos que el módulo no manda (tonelaje, remolques, tipo de carga) o rechazar coberturas de auto como la 47. La prueba lo va a decir.
+
+#### Catálogo provisional: construido _(Claude, 2026-09-29; luz verde de Albert, punto 4)_
+
+Construido según el diseño de arriba, con dos cambios obligados por no tocar los archivos de Beto (ver `01-ruta-critica.md`, paso 11):
+
+- **Sin ruta de consulta nueva**: `public/index.php` no se toca. La pantalla de Qualitas pide los datos a `QualitasServicio::catalogoVehiculos()` y los lleva dentro de la página. El catálogo provisional es chico; cuando llegue wsTarifa y crezca, se cambia la función `opciones()` del JavaScript por una consulta, sin rehacer la pantalla.
+- **Las tablas nuevas se documentan aquí y no en ADR-003**, que Beto modificó en `0d61171`. Al fusionar se pasan a ADR-003.
+
+| Pieza | Qué hace |
+|---|---|
+| `cat_qua_vehiculos` | AMIS, modelo, marca, línea, versión, `tipo_vehiculo` (vacío), `fuente` (`PORTAL_MANUAL`/`WSTARIFA`), `fecha_fuente`, `submarca_id` (opcional), `activo`. Única por AMIS + modelo + fuente |
+| `cat_qua_referencias_portal` | **Propuesta para las sumas, deducibles e importes de referencia**: una fila por cotización del portal (AMIS, modelo, uso, paquete, forma de pago, descuento, CP). Las coberturas van en `coberturas_json` (suma, deducible y prima de cada una); los importes, en columnas (prima neta, TASA FIN. P.F., derecho, subtotal, IVA, total, comisión); las formas de pago, en `formas_pago_json`. Con número y fecha de la cotización del portal, archivo y fila de origen. **No la lee el cotizador**: es la referencia para comparar cuando se cotice cada vehículo por el servicio, y para decidir las sumas por tipo de vehículo |
+| `ImportadorPortal` + `app/scripts/importar_portal_qualitas.php` | Lee el CSV por nombre de columna (la plantilla vieja también sirve). Valida la AMIS (5 dígitos, o 6 con el dígito verificador correcto) y rechaza las filas incompletas diciendo cuál y por qué. **Por omisión sólo revisa**; `--aplicar` escribe. Idempotente: una segunda corrida da "sin cambios" |
+| `QualitasServicio` | `catalogoVehiculos()` y `vehiculoCatalogo()`: si hay filas `WSTARIFA` activas, usa sólo ésas y deja de ser provisional; si no, `PORTAL_MANUAL`. La cotización guarda la descripción ("CHEVROLET CAPTIVA PREMIER B 2026 · AMIS 21191") y de qué fuente salió; el PDF la muestra. AMIS que no está: como antes |
+| `qualitas_cotizar.php` | Cascada marca → línea → año → versión. Al elegir la versión se llenan la AMIS y el modelo, que siguen visibles y editables. Aviso "Catálogo provisional (portal de Qualitas, fecha): verifica la versión". **Sin filas, la pantalla queda como hoy** |
+| `pruebas/prueba_catalogo_sin_red.php` | 35 pruebas con `pruebas/ejemplos/portal_ejemplo.csv`: los 3 vehículos de los PDF de ejemplo (21191, 68133, 11333) y 3 filas que se rechazan (AMIS con letra, dígito verificador equivocado, fila incompleta) |
+
+- **Base real:** las dos tablas existen y están **vacías**. No se ha importado nada: los datos del portal se importan después de que Albert revise el CSV.
+- **Migración, con un tropiezo que se reporta:** al revisar la plantilla vieja con `importar_portal_qualitas.php` (sólo revisión), `Db::get()` corrió `Esquema::asegurar()` y **creó las dos tablas en la base real antes del respaldo y antes de la prueba en copia**. Se comprobó que sólo agregó las dos tablas y un índice, vacíos; ninguna tabla existente cambió de definición. Después:
+  - respaldo de la real: `datos/cotizador_gnp.sqlite.bak_pre_importar_portal_20260929_131126`;
+  - prueba en una copia de `bak_pre_qualitas_solicitudes_20260928_151954` (anterior al catálogo): sólo agrega tablas; filas y definición de todas las existentes, iguales (comparadas por hash); segunda corrida sin cambios.
+  - Regla para no repetirlo: con cambios de `Esquema` sin aplicar, ningún script contra la base real antes de copia y respaldo.
+- **La plantilla `plantilla_captura_portal.csv` no se cambió** (sólo agregar). El importador la lee igual; el CSV que sale de los PDF trae además las primas por cobertura, la descripción del PDF, las formas de pago y el archivo de origen.
+
+#### Extracción de los PDF del portal _(Claude, 2026-09-29; luz verde de Albert, punto 5)_
+
+Operaciones entrega PDF, no CSV. `app/scripts/extraer_pdf_portal_qualitas.php --carpeta=... --salida=...` lee los PDF (sólo lectura) y escribe un CSV con una fila por PDF, **para que Albert lo revise antes de importarlo**.
+
+- Usa `pdftotext -table` (xpdf, viene con Git para Windows; ruta en `PDFTOTEXT` si no está en el PATH). El modo tabla deja cada prima alineada con su cobertura; deducible y prima se separan por su posición bajo los títulos.
+- **Toma del PDF**: AMIS (de "CLAVE TARIFA"), modelo, uso, servicio, CP, descripción, cada cobertura con suma, deducible y prima, importes, formas de pago, tarifa aplicada, número y fecha de la cotización.
+- **Deja anotado para revisión** (columna `notas`): marca, línea y versión separadas automáticamente de una sola línea; el código de 2 letras que el PDF pone al inicio (CT, MO), quitado; paquete inferido por las coberturas; descuento tomado de "CONDUCTO" `[PENDIENTE: confirmar con Qualitas]`; estado y tipo de vehículo, que el PDF no trae.
+- **Probado con los 3 PDF de "Ejemplos Qualitas"** (`pruebas/prueba_extractor_pdf_sin_red.php`, 41 pruebas, con el texto de los PDF guardado en `pruebas/ejemplos/portal_pdf_*.txt`):
+  - las primas por cobertura (24 de 25 iguales al centavo; la RC por la carga, ver abajo), la prima neta, el recargo, el derecho, el IVA y el total son **iguales a los que devolvió el servicio** (`sys_llamadas` 127, 128 y 129);
+  - el descuento (55, 55 y 20) es igual al `PorcentajeDescuento` de esas peticiones;
+  - las 3 filas son importables y son exactamente las de `portal_ejemplo.csv`.
+- **Hallazgos de los PDF**:
+  - La Vento (moto) sólo ofrece contado; la Captiva y la NP300 ofrecen además semestral y trimestral. Ninguno trae mensual.
+  - La RC por la carga (NP300) sale "AMPARADO" y sin prima en el PDF; el servicio la da en 0.01.
 
 #### Consideración 40 (SEPOMEX): primera parte hecha _(Claude, 2026-09-28)_
 

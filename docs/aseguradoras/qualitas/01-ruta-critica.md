@@ -4,7 +4,7 @@ Documento operativo. Se actualiza en cada reporte. Prioridad única: **Qualitas*
 
 El registro completo, las reglas verificadas y las decisiones están en [`00-estado.md`](./00-estado.md). Aquí sólo va el camino a `OPERATIVA` y dónde estamos.
 
-**Última actualización:** 2026-09-29 _(Claude)_. Paro tras los puntos 0 y 1: veredicto de la clave y comando de Postalia entregados.
+**Última actualización:** 2026-09-29 _(Claude)_. Paro tras los puntos 4 y 5: catálogo provisional y extracción de PDF hechos y probados sin red. Sigue esperando la salida de Postalia (paso 1).
 
 ## Orden acordado
 
@@ -16,8 +16,8 @@ El registro completo, las reglas verificadas y las decisiones están en [`00-est
 | 1 | Postalia: script de prueba del CP 11590 | ✅ Script listo (`app/scripts/prueba_postalia.php`), probado sin red | **Albert** corre el comando (1 llamada autorizada) |
 | 2 | Consideración 40 en QA | ⏳ Espera el resultado del paso 1 | Si Postalia trae códigos: 2 comandos (`cotizar-captiva` y `cotizar-captiva-cp40`), autorizados, los corre Albert. Si no: archivo de Correos → `ref_sepomex` |
 | 3 | Diseño Postalia + caché (`ref_sepomex`) y qué pasa si no responde | ⏳ Espera el resultado del paso 1 | Propuesta para que decida Albert |
-| 4 | Catálogo provisional `cat_qua_vehiculos` (tabla, importador del CSV, cascada en pantalla, pruebas) | ⏳ Siguiente, mientras Albert prueba Postalia | Claude |
-| 5 | Extracción de los PDF del portal → CSV | ⏳ Siguiente; se prueba con los 3 PDF de "Ejemplos Qualitas" | Claude. Después, Albert deja los PDF de Operaciones en `Proyectos\Qualitas_Cotizador\Portal\` |
+| 4 | Catálogo provisional `cat_qua_vehiculos` (tabla, importador del CSV, cascada en pantalla, pruebas) | ✅ Hecho, 35 pruebas sin red. Tablas en la base real, **vacías** | Importar los vehículos cuando Albert apruebe el CSV extraído (paso 5) |
+| 5 | Extracción de los PDF del portal → CSV | ✅ Hecho, 41 pruebas: los 3 PDF de ejemplo cuadran con el servicio (ids 127–129) | **Albert** deja los PDF de Operaciones en `Proyectos\Qualitas_Cotizador\Portal\`; Claude extrae el CSV; Albert lo revisa; se importa |
 | 11 | **Fusión de `feature/qualitas-cotizador` a `main`** | 🔒 **Bloqueada** | Antes de fusionar hay que decidir qué pasa con los commits de Beto en esta rama (ver abajo) |
 
 ## Bloqueante del paso 11: commits de Beto en esta rama _(Albert, 2026-09-29)_
@@ -34,6 +34,14 @@ La rama trae dos commits de Beto del 2026-09-29 que **cambian GNP**, no Qualitas
   - o se quedan en esta rama, y entonces hace falta una **regresión completa de GNP**;
   - o se mueven a su propia rama.
 - **Mientras tanto, el trabajo de Qualitas evita esos archivos** para no chocar con ellos. El catálogo provisional (paso 4) no agrega rutas a `public/index.php`: los datos los arma `QualitasServicio` y van en la pantalla de Qualitas. Las tablas nuevas se documentan en `00-estado.md` y no en ADR-003. Si algún paso llegara a necesitar esos archivos, Claude se detiene y avisa.
+
+## Pasos 4 y 5 — catálogo provisional y PDF del portal (2026-09-29)
+
+Detalle en `00-estado.md`, "Catálogo provisional: construido" y "Extracción de los PDF del portal".
+
+- **Sin choque con los archivos de Beto**: no se tocó `public/index.php` (el catálogo va dentro de la pantalla de Qualitas) ni ADR-003 (las tablas nuevas se documentan en `00-estado.md`; se pasan a ADR-003 al fusionar).
+- **Migración**: la base real recibió las dos tablas nuevas **antes** del respaldo y de la prueba en copia, porque un script de revisión abrió la base con `Db::get()`. Sólo agregó tablas vacías; respaldo posterior `bak_pre_importar_portal_20260929_131126`, y la prueba en copia se hizo después. Detalle en `00-estado.md`.
+- **Siguiente con el catálogo**: los PDF de Operaciones → CSV → revisión de Albert → `importar_portal_qualitas.php --aplicar` (con respaldo antes) → cotizar esas AMIS por el servicio, con llamadas autorizadas, y comparar contra `cat_qua_referencias_portal`.
 
 ## Paso 0 — veredicto de la clave de Postalia (2026-09-29)
 
@@ -71,7 +79,7 @@ C:\xampp\php\php.exe app\scripts\prueba_postalia.php --cp=11590 --autorizado
 
 La lista completa está en `00-estado.md`, "Lista para pasar a `OPERATIVA`". Los bloqueantes de hoy:
 
-1. Catálogo de vehículos: provisional (portal) para probar; wsTarifa (`cUsuario`/`cTarifa` de Qualitas) para operar.
+1. Catálogo de vehículos: provisional (portal) construido, falta cargar los vehículos de Operaciones; wsTarifa (`cUsuario`/`cTarifa` de Qualitas) para operar.
 2. Consideración 40 (municipio y colonia): pasos 1 a 3.
 3. Descripción del vehículo para el cliente: llega con el catálogo.
 4. Liberación del negocio 08902 por Qualitas, después de validar en QA.
