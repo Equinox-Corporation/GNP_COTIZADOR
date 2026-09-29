@@ -122,10 +122,10 @@ ok((bool) array_filter($motivos, static fn ($m) => str_contains($m, 'faltan amis
 ok($cuenta('cat_qua_vehiculos') === 0, 'La revisión no escribe nada');
 
 echo "\n4. Importar de verdad (y otra vez: idempotente)\n";
-$r = ImportadorPortal::importar($pdo, $csv, true, '2026-09-23');
+$r = ImportadorPortal::importar($pdo, $csv, true);   // sin fecha: toma la de la cotización del portal
 ok($r['insertados'] === 3 && $cuenta('cat_qua_vehiculos') === 3 && $cuenta('cat_qua_referencias_portal') === 3, '3 vehículos y 3 referencias');
 $veh = $pdo->query("SELECT * FROM cat_qua_vehiculos WHERE amis = '21191'")->fetch(PDO::FETCH_ASSOC);
-ok($veh['marca'] === 'CHEVROLET' && $veh['linea'] === 'CAPTIVA' && $veh['version'] === 'PREMIER B' && (int) $veh['modelo'] === 2026 && $veh['fuente'] === 'PORTAL_MANUAL' && $veh['fecha_fuente'] === '2026-09-23' && $veh['tipo_vehiculo'] === null, 'Captiva: marca, línea, versión, modelo, fuente PORTAL_MANUAL, fecha; tipo vacío');
+ok($veh['marca'] === 'CHEVROLET' && $veh['linea'] === 'CAPTIVA' && $veh['version'] === 'PREMIER B' && (int) $veh['modelo'] === 2026 && $veh['fuente'] === 'PORTAL_MANUAL' && $veh['fecha_fuente'] === '2026-09-23' && $veh['tipo_vehiculo'] === null, 'Captiva: marca, línea, versión, modelo, fuente PORTAL_MANUAL; fecha de la cotización del portal (2026-09-23), no la de hoy; tipo vacío');
 $ref = $pdo->query("SELECT * FROM cat_qua_referencias_portal WHERE amis = '21191'")->fetch(PDO::FETCH_ASSOC);
 $cobs = array_column(json_decode($ref['coberturas_json'], true), null, 'cobertura');
 ok((float) $ref['importe_total'] === 10464.91 && (float) $ref['subtotal'] === 9021.47 && (float) $ref['tasa_fin_pf'] === -168.81, 'Referencia Captiva: total 10,464.91, subtotal 9,021.47, TASA FIN. P.F. -168.81');
@@ -136,9 +136,17 @@ ok($r2['insertados'] === 0 && $r2['sin_cambios'] === 3 && $cuenta('cat_qua_vehic
 $copia = sys_get_temp_dir() . '/portal_cambiado_' . getmypid() . '.csv';
 $temporales[] = $copia;
 file_put_contents($copia, str_replace('PREMIER B', 'PREMIER B AWD', (string) file_get_contents($csv)));
-$r3 = ImportadorPortal::importar($pdo, $copia, true, '2026-09-24');
+$r3 = ImportadorPortal::importar($pdo, $copia, true);
 ok($r3['actualizados'] === 1 && $r3['sin_cambios'] === 2 && $pdo->query("SELECT version FROM cat_qua_vehiculos WHERE amis = '21191'")->fetchColumn() === 'PREMIER B AWD', 'Si cambia un dato: 1 actualizado, sin duplicar');
 ImportadorPortal::importar($pdo, $csv, true, '2026-09-23');
+$r4 = ImportadorPortal::importar($pdo, $csv, true, '2026-09-24');
+ok($r4['actualizados'] === 3 && (int) $pdo->query("SELECT COUNT(*) FROM cat_qua_vehiculos WHERE fecha_fuente = '2026-09-24'")->fetchColumn() === 3,
+    'Si sólo cambia la fecha de la fuente, también se actualiza', json_encode($r4));
+$pdo->exec("UPDATE cat_qua_vehiculos SET activo = 0 WHERE amis = '68133'");
+$r5 = ImportadorPortal::importar($pdo, $csv, true);
+ok($r5['actualizados'] === 3 && (int) $pdo->query("SELECT activo FROM cat_qua_vehiculos WHERE amis = '68133'")->fetchColumn() === 1
+    && (int) $pdo->query("SELECT COUNT(*) FROM cat_qua_vehiculos WHERE fecha_fuente = '2026-09-23'")->fetchColumn() === 3,
+    'Un vehículo desactivado vuelve a quedar activo al reimportarlo', json_encode($r5));
 
 echo "\n5. Catálogo para la pantalla\n";
 $cat = QualitasServicio::catalogoVehiculos();

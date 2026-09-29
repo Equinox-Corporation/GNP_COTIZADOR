@@ -163,7 +163,6 @@ final class ImportadorPortal
     {
         $r = ['insertados' => 0, 'actualizados' => 0, 'sin_cambios' => 0, 'rechazadas' => []];
         $filas = self::leer($archivo);
-        $fechaFuente ??= date('Y-m-d');
 
         $pdo->beginTransaction();
         try {
@@ -177,7 +176,10 @@ final class ImportadorPortal
                     ];
                     continue;
                 }
-                $estado = self::guardar($pdo, $f, $n, basename($archivo), $fechaFuente);
+                // Fecha de la fuente: la indicada; si no, la de la cotización del portal
+                // (FECHA DE COTIZACIÓN del PDF); sólo sin ninguna de las dos, hoy.
+                $fecha = $fechaFuente ?? (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($f['fecha_cotizacion'] ?? '')) ? (string) $f['fecha_cotizacion'] : date('Y-m-d'));
+                $estado = self::guardar($pdo, $f, $n, basename($archivo), $fecha);
                 $r[$estado]++;
             }
             $aplicar ? $pdo->commit() : $pdo->rollBack();
@@ -199,14 +201,15 @@ final class ImportadorPortal
         $veh = [
             'marca' => mb_strtoupper($f['marca']), 'linea' => mb_strtoupper($f['linea']), 'version' => mb_strtoupper($f['version_exacta']),
         ];
-        $st = $pdo->prepare("SELECT id, marca, linea, version FROM cat_qua_vehiculos WHERE amis = ? AND modelo = ? AND fuente = 'PORTAL_MANUAL'");
+        $st = $pdo->prepare("SELECT id, marca, linea, version, fecha_fuente, activo FROM cat_qua_vehiculos WHERE amis = ? AND modelo = ? AND fuente = 'PORTAL_MANUAL'");
         $st->execute([$amis, $modelo]);
         $previo = $st->fetch(PDO::FETCH_ASSOC);
         $cambioVeh = false;
         if ($previo === false) {
             $pdo->prepare("INSERT INTO cat_qua_vehiculos (amis, modelo, marca, linea, version, fuente, fecha_fuente) VALUES (?,?,?,?,?, 'PORTAL_MANUAL', ?)")
                 ->execute([$amis, $modelo, $veh['marca'], $veh['linea'], $veh['version'], $fechaFuente]);
-        } elseif ([$previo['marca'], $previo['linea'], $previo['version']] !== [$veh['marca'], $veh['linea'], $veh['version']]) {
+        } elseif ([$previo['marca'], $previo['linea'], $previo['version'], (string) $previo['fecha_fuente'], (int) $previo['activo']]
+                   !== [$veh['marca'], $veh['linea'], $veh['version'], $fechaFuente, 1]) {
             $pdo->prepare('UPDATE cat_qua_vehiculos SET marca = ?, linea = ?, version = ?, fecha_fuente = ?, activo = 1 WHERE id = ?')
                 ->execute([$veh['marca'], $veh['linea'], $veh['version'], $fechaFuente, $previo['id']]);
             $cambioVeh = true;

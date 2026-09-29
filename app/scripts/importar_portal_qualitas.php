@@ -15,6 +15,7 @@ declare(strict_types=1);
  * Uso:
  *   php app/scripts/importar_portal_qualitas.php --archivo=docs/aseguradoras/qualitas/plantilla_captura_portal.csv
  *   php app/scripts/importar_portal_qualitas.php --archivo=... --aplicar [--fecha-fuente=AAAA-MM-DD]
+ *   Sin --fecha-fuente, cada vehículo toma la fecha de su cotización del portal (fecha_cotizacion).
  */
 
 if (PHP_SAPI !== 'cli') {
