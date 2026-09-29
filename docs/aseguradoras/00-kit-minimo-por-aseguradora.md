@@ -36,5 +36,5 @@ Documento operativo (no es ADR). Es la lista de lo que hace falta para integrar 
 |---|---|---|
 | GNP | `OPERATIVA` | [ADR-005](../03_Decisiones/ADR-005-reglas-verificadas-gnp.md) |
 | HDI | `PREPARADA` | [hdi/00-estado.md](./hdi/00-estado.md) |
-| Qualitas | `PREPARADA` | [qualitas/00-estado.md](./qualitas/00-estado.md) |
+| Qualitas | `EN_INTEGRACION` (desde el 2026-09-28) | [qualitas/00-estado.md](./qualitas/00-estado.md) |
 | Zurich | `PREPARADA` | [zurich/00-estado.md](./zurich/00-estado.md) |

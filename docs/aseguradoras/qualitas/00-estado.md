@@ -8,6 +8,25 @@ Sigue faltando el usuario del catálogo (`cUsuario`/`cTarifa`). El negocio 08902
 
 _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando existiera el cliente con su candado de emisión (ADR-010, punto 4) y se hubiera hecho la primera llamada a QA con respuesta real.
 
+## Para retomar: estado del trabajo al 2026-09-28
+
+- **Rama** `feature/qualitas-cotizador`, en `origin`. `main` no se ha tocado; el tag `pre-qualitas` también está en `origin`, en el mismo commit que `main`.
+- **Prioridad actual (Albert, 2026-09-28): el catálogo de vehículos y las pruebas con él.** Todo lo demás está congelado, incluida la prueba de A y B en el navegador (protección contra llamadas repetidas).
+- **Esperando a Albert:**
+  1. **Archivo de SEPOMEX** en `Proyectos\Qualitas_Cotizador\SEPOMEX\`. Con él se leen los códigos de municipio y colonia del CP 11590 y se entregan los 2 comandos autorizados, `cotizar-captiva` y `cotizar-captiva-cp40`, seguidos y en la misma sesión.
+  2. **Datos del portal de Qualitas** de los 8 vehículos, en `plantilla_captura_portal.csv`. Con ellos se construye `cat_qua_vehiculos` (diseño aprobado, sección "Etapa 3").
+- **Esperando a Qualitas:** `cUsuario`/`cTarifa` del catálogo (wsTarifa), y la liberación del negocio cuando se valide en QA.
+- **Última llamada registrada de Qualitas:** `sys_llamadas.id` 139. Evidencia en `evidencia/`.
+- **Pruebas sin red, todas en verde:**
+
+  | Archivo | Pruebas |
+  |---|---|
+  | `prueba_sin_red.php` | 75 |
+  | `prueba_etapa4_sin_red.php` | 130 |
+  | `prueba_solicitud_unica_sin_red.php` | 42 |
+
+- **Reglas de trabajo** (`docs/aseguradoras/00-reglas-de-trabajo.md`): el `.env` nunca se imprime, y toda copia se verifica con `app/scripts/verificar_copia_sin_red.php` antes de levantarla.
+
 ## Lo que se recibió
 
 Carpeta `Proyectos\Qualitas_Cotizador\`.
@@ -22,13 +41,14 @@ Carpeta `Proyectos\Qualitas_Cotizador\`.
 | `RESUMEN CONSIDERACIONES IDENTIFICACIÓN DEL CLIENTE SERVICIO WEB.pdf` | Datos de identificación del cliente (Art. 492): nombre, RFC, CURP, ocupación, nacionalidad… | **Sólo emisión.** No aplica a cotizar |
 | `XMLDoc_EjemploCamposEmision_CP.xml` | Plantilla XML de **emisión** (`TipoMovimiento="3"`) | Referencia de estructura. No se usa tal cual |
 | `SW_EQUINOX_08902_0008810_JASM.xls` | **Formulario de alta del negocio** (condiciones comerciales). Protegido sólo contra escritura: abre normal en Excel | Condiciones del negocio 08902 |
+| `Indicaciones Qualitas.pdf` | Correo de Qualitas (recibido por Albert, anotado el 2026-09-28): el negocio está en ambiente de pruebas; consideración 40 (municipio y colonia SEPOMEX) para la tarifa por CP | Ver la sección "Correo de Qualitas" |
 | `Ejemplos Qualitas\` — 3 pares XML + PDF | Cotizaciones de ejemplo hechas por Qualitas el 23-sep-2026 (CP 11590): Chevrolet Captiva 2026, Nissan NP300 2026 (carga), Vento Tornado 300 2026 (moto) | Referencia de precio para la prueba de igualdad (ADR-010, punto 12) |
 
 ### Datos del negocio (formulario de alta)
 
 | Dato | Valor | Nota |
 |---|---|---|
-| Negocio (`NoNegocio`) | `08902` | "Fecha de revisión de condiciones: 30/09/26". Las columnas que llena Qualitas (SIO) están vacías: **no hay constancia de que ya esté activo** |
+| Negocio (`NoNegocio`) | `08902` | "Fecha de revisión de condiciones: 30/09/26". Las columnas que llena Qualitas (SIO) están vacías: **no hay constancia de que ya esté activo**. _(2026-09-28)_ Qualitas confirmó que está en su **ambiente de pruebas**; hay que solicitar su liberación una vez validado |
 | Agente | `08810` (en los XML: `0008810`) | |
 | Tipo | Servicio Web · AG – Cartera de agente | |
 | Subramos | Autos, Pickups, Camiones, Motos, Equipo pesado · nuevos y usados | |
@@ -48,15 +68,15 @@ Carpeta `Proyectos\Qualitas_Cotizador\`.
 
 | # | Qué | Estado | Detalle |
 |---|---|---|---|
-| 1 | Manual técnico | ✅ Llegó, con huecos | Hay estructura de petición completa. **No hay ningún ejemplo de respuesta**, y el WSDL sólo viene como imagen |
+| 1 | Manual técnico | ✅ Llegó, con huecos | Hay estructura de petición completa. **No hay ningún ejemplo de respuesta**, y el WSDL sólo viene como imagen. _(2026-09-28)_ Resuelto de nuestro lado: WSDL real (id 122) y respuestas reales, exitosas y con error (ids 123, 126 a 139) |
 | 2 | Tipo de servicio | ✅ | SOAP/XML ("WS"), ASP.NET (`.asmx`). Método `obtenerNuevaEmision` |
-| 3 | Credenciales | ⚠️ Parcial — **bloqueante** | Hay `NoNegocio` 08902 y agente 0008810. El servicio de emisión no documenta usuario/contraseña (¿validan por IP?). El de catálogo **exige `cUsuario` y `cTarifa`, que no llegaron** |
+| 3 | Credenciales | ⚠️ Parcial — **bloqueante** | Hay `NoNegocio` 08902 y agente 0008810. El servicio de emisión no documenta usuario/contraseña (¿validan por IP?). El de catálogo **exige `cUsuario` y `cTarifa`, que no llegaron**. _(2026-09-28)_ En QA bastó con negocio + agente (id 123); el correo de Qualitas tampoco trae `cUsuario`/`cTarifa` |
 | 4 | Catálogo de errores | ✅ | `CatalogoErroresSW.xlsx` + tablas de errores de Tarifas e Impresión |
 | 5 | Catálogo de vehículos | ✅ documentado · ⚠️ sin acceso | `wsTarifa.asmx`, clave **AMIS** (5 dígitos). Sin `cUsuario`/`cTarifa` no se puede descargar. Sólo trae URL de producción (y en `http`) |
 | 6 | Ambiente de pruebas | ✅ | `https://qa.qualitas.com.mx:8443/WsEmision/WsEmision.asmx`. Además, la consideración 04 marca pruebas (1) o producción (0) |
 | 7 | Matriz de paquetes y coberturas | ✅ Parcial | Anexo 5 (qué cobertura es obligatoria/opcional por paquete) + condiciones del negocio. Falta el código de "Básica" y los rangos de suma permitidos |
 | 8 | Impresión | ❌ Para cotización | `WSIMPRESION` pide **número de póliza** (`nPoliza`), no de cotización. Se entrega el PDF propio (PdfBasico) |
-| 9 | Catálogo de CP / estados | ✅ | Anexo 1 (32 estados, mismo orden que INEGI) + SEPOMEX para municipio/colonia (esto último, sólo emisión) |
+| 9 | Catálogo de CP / estados | ✅ | Anexo 1 (32 estados, mismo orden que INEGI) + SEPOMEX para municipio/colonia (esto último, sólo emisión). _(2026-09-28)_ **Corrección:** Qualitas pide municipio y colonia SEPOMEX también para cotizar, en la consideración 40 ("Indicaciones Qualitas.pdf") |
 | 10 | Vigencia de la cotización | ✅ (por los PDF) | "La presente cotización tiene una vigencia de **7 días**". Sale de los PDF de ejemplo, no del manual |
 | 11 | Contacto técnico | ❌ | El formulario lo deja en blanco |
 
@@ -82,6 +102,8 @@ Riesgo que sí vale la pena anotar en ADR-010: **el candado por ruta no sirve pa
 
 ### Clasificación de errores propuesta `[PENDIENTE]` hasta verlos llegar
 
+_(2026-09-28)_ El formato de `<CodigoError>` ya se vio: `0007-- texto`, y el 7 cayó en `DATOS` como se esperaba (id 126; "Reglas verificadas", punto 11). Los códigos de `AUTH` y `SISTEMA` siguen sin verse.
+
 | Categoría | Códigos | Por qué |
 |---|---|---|
 | `AUTH` | 2, 3, 4, 5, 26, 36, 59, 63, 200, 207, 310 · Tarifas: 3, 4 | Negocio, agente, tarifa o permiso. No se arregla corrigiendo la captura: avisar a administración |
@@ -98,7 +120,7 @@ Lo que el módulo de Qualitas tiene que respetar (ADR-010, punto 6):
 |---|---|---|
 | Paquetes | Varios por llamada; claves `PRS…` | Uno por movimiento. 01 Amplia, 02 Plus, 03 Limitada, 04 RC. Negocio: Amplia, Limitada, Básica |
 | Coberturas | Dos niveles | Cuatro marcas por paquete: **S** requerida · **N** no aplica · **AD** incluida pero se puede quitar · **O** opcional |
-| Sumas | Lista cerrada | "Abierta", pero la limita SISE. En los ejemplos DM y RT se mandan en **0** y Qualitas pone el valor (468,000 para la Captiva) `[PENDIENTE: de dónde sale]` |
+| Sumas | Lista cerrada | "Abierta", pero la limita SISE. En los ejemplos DM y RT se mandan en **0** y Qualitas pone el valor (468,000 para la Captiva) `[PENDIENTE: de dónde sale]`. Regresa `TipoSuma` 2, que no está en el Anexo 6. Gastos Legales y Asistencia Vial también regresan con suma aunque se manden en 0 ("Reglas verificadas", punto 14). Las sumas por omisión pueden depender del tipo de vehículo (Etapa 3) |
 | Tipo de suma | — | 0 convenido · 1 factura · 3 comercial, sólo para DM y RT. RC Complementaria (47) usa tipo **14**, que no está en el anexo |
 | Deducibles | Por cobertura, lista | DM 3/5/10 · RT 5/10/20 · RC 0 UMA |
 | Vehículo | Marca/armadora/carrocería/versión | **Clave AMIS** + modelo + **dígito verificador** (módulo 10) en la consideración 01 |
@@ -106,14 +128,16 @@ Lo que el módulo de Qualitas tiene que respetar (ADR-010, punto 6):
 | Segmento | Procedencia (sólo Residentes verificada) | **Uso** (01 normal, 06 carga…) + **servicio** (01 particular) + tipo de vehículo del AMIS |
 | Descuento | Viene aplicado por GNP | **Lo manda Equinox** en `PorcentajeDescuento`: tope 55 autos/pick-up, 30 camiones, 20 motos. Es decisión de negocio |
 | Derecho de póliza | Lo devuelve GNP (680 observado) | **Lo manda Equinox**: 750 |
-| Precio | `TOTAL_PAGAR` | `PrimaTotal` / "Importe total" (ver aritmética) |
-| Formas de pago | — | El PDF muestra contado, semestral y trimestral en la misma cotización |
+| Precio | `TOTAL_PAGAR` | `PrimaTotal` = "Importe total" `[CONFIRMADO]` (ids 123, 127 a 129: 15/15 contra los PDF de Qualitas) |
+| Formas de pago | — | El PDF muestra contado, semestral y trimestral en la misma cotización. El servicio responde **una forma de pago por llamada** `[CONFIRMADO]` (ids 136 a 139); semestral y trimestral iguales al PDF |
 | Vigencia de la cotización | 15 días | **7 días** |
 | PDF | Servicio de impresión (y lo manda por correo) | No hay para cotización: PDF propio |
-| Comisión | No viene | **Viene en la respuesta** (`Comision`). Decidir si el usuario la ve |
+| Comisión | No viene | **Viene en la respuesta** (`Comision`). Decidido (Albert): el usuario administrador la ve en pantalla, en porcentaje e importe, tal como llega; **nunca en el PDF** ("Reglas verificadas", puntos 7 y 17) |
 | Transporte | https | Producción de emisión y de tarifas en **http** (sin cifrar). QA sí es https |
 
-### Aritmética de los PDF de ejemplo `[PENDIENTE]` — cuadra en papel, falta verla en el servicio
+### Aritmética de los PDF de ejemplo — cuadra en papel y en el servicio `[CONFIRMADO]` (ids 127, 128, 129)
+
+_(2026-09-28)_ Las tres cotizaciones de ejemplo, repetidas en QA, dan los cinco conceptos iguales al centavo ("Reglas verificadas", punto 12). El SUBTOTAL 9,021.47 de la Captiva también cuadra.
 
 ```
 PRIMA NETA − PRONTO PAGO (2%) + GASTOS EXP.  = SUBTOTAL   ;  SUBTOTAL × 16%  = IVA      ;  TOTAL
@@ -143,6 +167,7 @@ En la carpeta `Proyectos\Qualitas_Cotizador\`. Acompaña la matriz del negocio, 
 3. **Dato:** "en el ambiente de producción deben cotizar para cuadrar costos y la emisión como impresión de póliza deben realizarla en desarrollo".
    - No cambia nada: este sistema no emite ni imprime pólizas.
    - **No se cotiza en producción hasta que el negocio esté liberado.**
+
 ## Pendientes con Qualitas
 
 Lo que **sólo Qualitas puede resolver**. Todavía no se les escribe (Albert, 2026-09-28): primero se agotan las pruebas de nuestro lado. Lo que resolvamos nosotros sale de esta lista y queda anotado abajo, en "Resuelto de nuestro lado".
@@ -399,14 +424,10 @@ La llamada de error con descuento de 60% ya se hizo: la corrió Albert desde su 
 Comandos, para correr desde la terminal de Albert (cada uno es **una** llamada a QA):
 
 ```
-C:
-mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva          --autorizado
-C:
-mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-np300            --autorizado
-C:
-mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-vento            --autorizado
-C:
-mpp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva-limitada --autorizado
+C:\xampp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva          --autorizado
+C:\xampp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-np300            --autorizado
+C:\xampp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-vento            --autorizado
+C:\xampp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php cotizar-captiva-limitada --autorizado
 ```
 
 - **Los tres ejemplos** mandan el mismo XML que los ejemplos de Qualitas, salvo las fechas (hoy). Se comprobó sin red, contra una copia saneada. Cada uno imprime la comparación contra su PDF: prima neta, pronto pago, derechos, IVA y total, con ✓/✗.
@@ -501,8 +522,8 @@ En producción cada llamada cuenta. Lo medido antes del cambio, sobre una copia 
 |---|---|---|
 | Cumple el contrato (punto 3) y tiene el candado de emisión (punto 4) | ✅ | `AseguradoraQualitas` implementa `CotizadorAseguradora`. Candado doble (ruta + contenido); 16 variantes bloqueadas en prueba sin red |
 | Guarda el resultado en el formato común (punto 7) | ✅ | Precio = `PrimaTotal`, en `cot_resultados`/`cot_resultado_coberturas` con `aseguradora='QUALITAS'` (pruebas de la Etapa 4) |
-| Deja evidencia de cada llamada, con credenciales enmascaradas (ADR-006) | ✅ | `sys_llamadas` 120 a 130 con `aseguradora='QUALITAS'`. `cUsuario`/`cTarifa` enmascarados; el servicio de emisión no lleva contraseña |
-| Reglas verificadas documentadas | ✅ | Esta sección y "Reglas verificadas", puntos 1 a 14 |
+| Deja evidencia de cada llamada, con credenciales enmascaradas (ADR-006) | ✅ | `sys_llamadas` 120 a 139 con `aseguradora='QUALITAS'`. `cUsuario`/`cTarifa` enmascarados; el servicio de emisión no lleva contraseña |
+| Reglas verificadas documentadas | ✅ | Esta sección y "Reglas verificadas", puntos 1 a 17 |
 | Las cotizaciones de prueba dan el mismo precio que la compañía | ✅ en QA · ❌ en producción | 15/15 contra los PDF de Qualitas (ids 127 a 129). Falta la cotización de control en producción |
 | GNP sigue funcionando igual | ✅ | Regresión sin llamadas de las Etapas 5 y del menú: HTML de GNP idéntico salvo el menú de administradores; imprimir de GNP no acepta cotizaciones de Qualitas |
 
@@ -512,14 +533,15 @@ En producción cada llamada cuenta. Lo medido antes del cambio, sobre una copia 
 - [ ] **Validación de negocio de pick-up** (comisión como camión, descuento como auto): pendiente de Albert con Operaciones o con Qualitas.
 - [x] **Protección contra llamadas repetidas en "Cotizar"**: A + B implementadas y probadas sin red (2026-09-28). Falta probar A en un navegador. C es riesgo aceptado.
 - [x] **"Ver otras formas de pago"** con su propio token: tras una falla no reintenta sin que el usuario lo decida (`64b7e95`).
-- [ ] **Prueba de A y B en el navegador contra QA** (Albert): hasta 4 llamadas autorizadas.
+- [ ] **Prueba de A y B en el navegador contra QA** (Albert): hasta 4 llamadas autorizadas. **Congelada** desde el 2026-09-28 (prioridad: catálogo).
 - [ ] **Catálogo de vehículos:** `cUsuario`/`cTarifa` de Qualitas. Sin él, la clave AMIS se escribe a mano y no se sabe el tipo de vehículo, así que el descuento usa la fila Todos y no se puede comparar la comisión contra su tipo (aviso de comisión anómala, pendiente de la Etapa 3).
 - [ ] **Liberación del negocio 08902**: validar en QA → **solicitar a Qualitas la liberación** del negocio (hoy está en su ambiente de pruebas). Hasta entonces no se cotiza en producción.
-- [ ] **Consideración 40 (municipio y colonia SEPOMEX)** en `DatosAsegurado`, que Qualitas pide para la tarifa por CP. Hoy no se manda. Diagnóstico y propuesta entregados a Albert el 2026-09-28, pendientes de decisión.
+- [ ] **Consideración 40 (municipio y colonia SEPOMEX)** en `DatosAsegurado`, que Qualitas pide para la tarifa por CP. Primera parte hecha (`0f1aafe`: el XML la acepta, con pruebas y subcomando). Falta: archivo de SEPOMEX, prueba en QA con y sin ella, tabla `ref_sepomex` y colonia en la pantalla.
 - [ ] **Cotización de control en producción**, con autorización. Requiere poner `QUALITAS_URL_PRODUCCION` y comprobar que la consideración 04 en `0` funciona; nunca se ha probado.
 - [ ] **Producción va por `http` sin cifrar** según el manual. Preguntar a Qualitas si hay `https` antes de mandar datos reales.
 - [ ] **Menú para todos los usuarios:** al pasar a `OPERATIVA`, Qualitas sale del bloque "en preparación" de los administradores y hoy no hay enlace para los demás. Hay que darle un lugar en `layout.php` antes del cambio de estado.
 - [ ] Sin bloquear, pero pendientes: paquete Básica sin código; vigencia de 7 días sin confirmar; comisión de un camión que no sea pick-up sin ver en el servicio; los códigos `AUTH` y `SISTEMA` de la tabla de errores no se han visto llegar.
+
 ## Reglas verificadas contra el servicio de Qualitas
 
 Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, con su `sys_llamadas.id`. Lo que sale de documentos o de los PDF de ejemplo sigue `[PENDIENTE]`. La petición y la respuesta crudas de cada llamada están también en `docs/aseguradoras/qualitas/evidencia/`.
@@ -533,9 +555,8 @@ Como ADR-005 para GNP: `[CONFIRMADO]` sólo lo que se vio responder de verdad, c
 | 122 | `GET …/WsEmision.asmx?WSDL` | OK, 3,237 bytes |
 | 123 | `obtenerNuevaEmision`, Captiva 2026, AMIS 21191, CP 11590, Estado 9, Amplia, descuento 55, pronto pago 14 | **OK**, `NoCotizacion` 1219390564, 1,265 ms |
 | 124 | Misma Captiva con `PorcentajeDescuento=60`, para ver el formato de un error (autorizada por Albert el 2026-09-28; se esperaba el error 7) | `RED`: "Could not resolve host". **No llegó a Qualitas.** Windows sí resolvía el nombre, pero el PHP de la sesión no, desde ninguna de las dos terminales. Por la instrucción de no reintentar, no se repitió. El formato de `<CodigoError>` sigue `[PENDIENTE]` |
-| 125 | La misma llamada que la 124, repetida una sola vez desde PowerShell por indicación de Albert (la 124 no había salido, así que no cuenta como reintento) | `RED`: "Could not resolve host" otra vez. **No llegó a Qualitas.** Queda para que Albert la corra desde su terminal: `C:
+| 125 | La misma llamada que la 124, repetida una sola vez desde PowerShell por indicación de Albert (la 124 no había salido, así que no cuenta como reintento) | `RED`: "Could not resolve host" otra vez. **No llegó a Qualitas.** Queda para que Albert la corra desde su terminal: `C:\xampp\php\php.exe app\aseguradoras\Qualitas\pruebas\llamada_qa.php error-descuento-60 --autorizado` |
 | 126 | La misma llamada, **corrida por Albert desde su terminal** | `DATOS`, HTTP 200, 1,484 ms. `<CodigoError>0007-- Descuento fuera de Rango, rango valido 0 a 55</CodigoError>`. Ver punto 11 |
-mppphpphp.exe appseguradorasQualitaspruebasllamada_qa.php error-descuento-60 --autorizado` |
 
 ### 1. El servicio en QA sólo tiene `obtenerNuevaEmision` `[CONFIRMADO]` (id 122, 121)
 
@@ -623,7 +644,7 @@ Es otra razón para no calcularlo nunca.
 - **Si una respuesta trae un porcentaje distinto al esperado para su tipo**, se muestra tal cual y se anota un aviso en la bitácora. **Pendiente, ligado a la Etapa 3** (decisión de Albert, 2026-09-28: opción a). Se implementa completo cuando llegue el catálogo y se sepa el tipo de vehículo. Hoy no se compara nada, para no suponer el tipo.
 - **Si no llega el porcentaje o el importe, se muestra "no disponible"**, nunca un valor por omisión.
 
-### 8. Formas de pago: una por llamada `[CONFIRMADO para contado · PENDIENTE las demás]` (id 123)
+### 8. Formas de pago: una por llamada `[CONFIRMADO]` (id 123; semestral, trimestral y mensual en el punto 16, ids 137 a 139)
 
 Con `FormaPago` C llegó **un solo** `<Recibos NoRecibo="1">`, con los mismos importes que `<Primas>`. La respuesta no trae el desglose semestral ni trimestral que muestra el PDF. Para tener S/T/M habría que mandar otra cotización con esa forma de pago; no se ha probado.
 

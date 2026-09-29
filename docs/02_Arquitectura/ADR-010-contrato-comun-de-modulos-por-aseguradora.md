@@ -29,7 +29,10 @@ app/
 ├── plataforma/           NUEVO · lo que comparten todos los módulos
 │   ├── CotizadorAseguradora.php    el contrato (interfaz)
 │   ├── Aseguradoras.php            el registro: qué compañías hay y en qué estado
-│   └── Resultado.php               el formato común del resultado
+│   ├── Resultado.php               el formato común del resultado
+│   ├── CandadoEmision.php          candado por ruta (punto 4)
+│   ├── RangoDescuento.php          rango de descuento por aseguradora y tipo (2026-09-28, con Qualitas)
+│   └── SolicitudUnica.php          token de un solo uso por formulario (2026-09-28, con Qualitas)
 └── aseguradoras/         NUEVO · una carpeta por compañía
     ├── Gnp/              adaptador delgado sobre lo que ya existe (no mueve nada)
     ├── Hdi/
@@ -147,7 +150,12 @@ sys_llamadas       + aseguradora DEFAULT 'GNP'
 
 cat_*              ← GNP (sin cambio de nombre)
 cat_hdi_*          ← HDI (paquetes, coberturas, valores, catálogos)
-cat_qua_* · cat_zur_*  ← cuando lleguen
+cat_qua_*          ← Qualitas: cat_qua_paquetes, cat_qua_coberturas (2026-09-28)
+cat_zur_*          ← cuando llegue
+ref_*              ← catálogos nacionales, no de una compañía (ref_sepomex, por crear; ADR-003)
+
+sys_descuentos · sys_descuentos_cambios   (NUEVAS, 2026-09-28) rango de descuento por aseguradora y tipo, con su historial
+sys_solicitudes    (NUEVA, 2026-09-28) token de un solo uso por formulario: un reenvío no repite llamadas
 ```
 
 Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` por historia. Guardan el cuerpo de ida y vuelta **en el formato que use la compañía** (XML o JSON). No se renombran para no tocar la evidencia existente.
@@ -167,6 +175,8 @@ Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` p
 | **Migración sobre la base en uso** | Agregar columnas a `cot_*` toca la base que ya tiene cotizaciones reales |
 | **Dos convenciones de nombre conviviendo** | `cat_*` (GNP, por historia) y `cat_hdi_*` (nuevas) pueden confundir a alguien nuevo |
 | **Pruebas contra producción** | Las pruebas de regresión de GNP (`app/scripts/prueba_*.php`) cotizan en producción. No generan póliza, pero son llamadas reales |
+| **Compañías que cotizan y emiten con el mismo método** _(2026-09-28)_ | Qualitas usa `obtenerNuevaEmision` para las dos cosas; sólo cambia `TipoMovimiento` dentro del XML. **El candado por ruta del punto 4 no protege nada ahí** |
+| **Llamadas repetidas** _(2026-09-28)_ | Un doble clic o un reenvío del formulario repetía la cotización. En producción cada llamada cuenta |
 
 ## 🛡️ Mitigaciones
 
@@ -174,6 +184,8 @@ Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` p
 - **Migración:** respaldo fechado de `cotizador_gnp.sqlite` antes de aplicarla (mismo patrón `.bak_pre_*` de siempre) y marca de versión en git.
 - **Nombres:** esta convención queda escrita aquí y en [ADR-003](./ADR-003-modelo-de-datos.md).
 - **Regresión:** se corren sólo las pruebas mínimas necesarias, registradas en la bitácora como cualquier llamada.
+- **Mismo método para cotizar y emitir** _(2026-09-28)_: el módulo agrega un **candado por contenido**, sin tocar el de ruta. `TipoMovimiento` tiene que ser exactamente 2, y `NoPoliza`, `NoEndoso` y `TipoEndoso` van vacíos. Además, lista permitida de métodos y segunda revisión del sobre ya armado. Una prueba demuestra que un XML con `TipoMovimiento` 3 o 4 nunca sale (`app/aseguradoras/Qualitas/QualitasClient.php`). Si otra compañía resulta igual, se sube a `app/plataforma/`.
+- **Llamadas repetidas** _(2026-09-28)_: botón bloqueado al enviar y `SolicitudUnica` (token de un solo uso) en los formularios de Qualitas. GNP tiene el mismo hueco, sin medir; aplicarlo ahí es decisión aparte.
 
 ## 🧩 Consideraciones futuras
 
@@ -191,7 +203,7 @@ Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` p
 
 - Validar el contrato (punto 3) contra el manual técnico de HDI en cuanto llegue.
 - Decidir cuándo y quién llena `clave_vehiculo` y `submarca_id` (punto 9) — las columnas ya existen, nadie las usa todavía.
-- Construir de verdad los clientes de HDI, Qualitas y Zurich — hoy sólo tienen carpeta y README.
+- Construir de verdad los clientes de HDI, Qualitas y Zurich — hoy sólo tienen carpeta y README. _(2026-09-28)_ **Qualitas ya tiene cliente, módulo y pantallas**, en `EN_INTEGRACION`, en la rama `feature/qualitas-cotizador` (ver abajo). HDI y Zurich siguen sólo con carpeta.
 
 ### Hecho en la Fase 1 (25-sep-2026)
 
@@ -204,6 +216,13 @@ Nota sobre `sys_llamadas`: las columnas se llaman `xml_entrada` y `xml_salida` p
 - Regresión con 2 llamadas reales de control contra producción (autorizadas por Manu): cot #28 → #41 (Cotizador, 3 paquetes) y cot #39 → #42 (Juega y Compara, plantilla 76). Migraciones aplicadas y comprobadas contra la base real: 38 cotizaciones antes, 40 después (38 + las 2 de control), las 40 marcadas `GNP` en `cot_cotizaciones`/`cot_resultados`/`cot_documentos`/`sys_llamadas`. Petición XML idéntica byte a byte contra el original en ambos pares (sólo difieren vigencia y el nombre de prueba del contratante). Evidencia y Comparativo Multi-Plan (PDF/Excel) generados sin problema para las 2 cotizaciones nuevas. Precio con variación (+8.6% a +10.3% en el par del Cotizador, 0% en el de Juega y Compara): atribuido a tarifa de GNP, ver [ADR-005 punto 12](../03_Decisiones/ADR-005-reglas-verificadas-gnp.md).
 
 **Nota para futuras regresiones de control:** al repetir una cotización para comparar, copiar también el **nombre del contratante** tal cual quedó guardado (`cot_cotizaciones.contratante`), no sólo vehículo/CP/edad/sexo/tipo de persona/paquetes. No tarifica, pero repetirlo exacto evita que el diff del XML de petición traiga ruido que hay que explicar aparte cada vez.
+
+### Avance de Qualitas (28-sep-2026, rama `feature/qualitas-cotizador`, sin fusionar a `main`)
+
+- **Primer módulo nuevo sobre el contrato:** cabe sin agrandarlo. Lo distinto de Qualitas (un paquete por llamada, PDF propio, catálogo aparte, clasificación de errores por código) se resolvió dentro de `app/aseguradoras/Qualitas/`.
+- **Estado `EN_INTEGRACION`** desde el 2026-09-28, por migración idempotente.
+- **Punto 12**: el precio es igual al de la compañía en QA (15/15 contra sus PDF). Falta para `OPERATIVA`: catálogo de vehículos, liberación del negocio por Qualitas, consideración 40 (SEPOMEX) y una cotización de control en producción.
+- El detalle, las reglas verificadas con sus `sys_llamadas.id` y la lista del punto 12 están en [`docs/aseguradoras/qualitas/00-estado.md`](../aseguradoras/qualitas/00-estado.md).
 
 ## Referencias
 

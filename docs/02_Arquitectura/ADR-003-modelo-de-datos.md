@@ -63,6 +63,17 @@ sys_llamadas                   56   XML de ida y vuelta de cada llamada
 
 > ⚠️ _(CC, 2026-09-10)_ — **`cat_plantillas` y `cat_plantilla_coberturas` son la excepción dentro de esta base.** Todo lo demás en `cotizador_gnp.sqlite` es `cat_*` (espejo de GNP, se regenera bajando el catálogo otra vez), `cot_*` (instancias de cotización) o `sys_*` (usuarios y bitácora) — nada de eso es irrecuperable si se pierde el archivo, sólo hay que volver a correr los scripts de carga contra GNP. Estas dos tablas no: son **contenido de negocio propio** (las plantillas de paquetes de Equinox — Amplia Plus, Amplia, Limitada, RC/Básica — y la que arme Producto para "Equinox Agente de Seguros y de Fianzas"), con el mismo perfil de riesgo que este ADR ya describe para `cat_comercial.db` en la sección de Riesgos: si se pierde el archivo sin respaldo, no se "vuelve a bajar de GNP" — se pierde el trabajo de captura. La diferencia es que, a diferencia de `cat_comercial.db` (sin script de reproducción, sólo respaldos manuales), estas dos **sí tienen script de reproducción**: `app/scripts/cargar_plantillas_equinox.php`, idempotente, que reconstruye las 4 plantillas reales desde su definición en código. Vale la pena tenerlo presente si en el futuro se decide una política de respaldo automático: qué tan seguido respaldar cada tabla depende de si su contenido se puede reconstruir corriendo un script, o no.
 
+> _(Claude, 2026-09-28)_ — **Tablas agregadas por la plataforma de aseguradoras y el módulo de Qualitas** (rama `feature/qualitas-cotizador`, todas por `Esquema::migrar()`, sólo agregar, probadas en copia y aplicadas a la base real con respaldo):
+>
+> | Tabla | Qué guarda |
+> |---|---|
+> | `sys_aseguradoras` | Qué compañías hay y en qué estado (25-sep, Fase 1). Qualitas pasó a `EN_INTEGRACION` el 28-sep |
+> | `sys_descuentos` · `sys_descuentos_cambios` | Rango de descuento por aseguradora y tipo de vehículo, y el historial de cada cambio (quién, cuándo, antes y después). Común a la plataforma; GNP no la usa |
+> | `sys_solicitudes` | Token de un solo uso por formulario, para que un reenvío no repita llamadas. Se limpia sola; nunca toca cotizaciones |
+> | `cat_qua_paquetes` · `cat_qua_coberturas` | Paquetes y coberturas de Qualitas (Anexo 5 y condiciones del negocio), con `presentacion_suma` (MONTO o AMPARADA) |
+>
+> Diseñadas y **todavía no creadas**: `cat_qua_vehiculos` (catálogo de vehículos de Qualitas, con `fuente` PORTAL_MANUAL o WSTARIFA) y `ref_sepomex` (códigos postales, municipios y colonias). El detalle está en `docs/aseguradoras/qualitas/00-estado.md`.
+
 **Una cotización tiene N resultados.** Es la consecuencia directa de que GNP acepte varios paquetes en una sola llamada: se pide una vez y se guardan todos los planes tarificados, comparables entre sí.
 
 ### 3. El catálogo maestro y su homologación `[CONFIRMADO]`

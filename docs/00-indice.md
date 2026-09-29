@@ -78,7 +78,7 @@ Un **ADR** (Architecture Decision Record) documenta una decisión: qué se decid
 | Homologadas con GNP | 3,461 (44.5%) |
 | Procedencias verificadas | 1 de 7 (sólo Residentes, `01`) |
 | Llamadas registradas en bitácora | 118 |
-| Aseguradoras en la plataforma | GNP `OPERATIVA` · HDI, Qualitas, Zurich `PREPARADA` (sólo carpeta, sin cliente) |
+| Aseguradoras en la plataforma | GNP `OPERATIVA` · Qualitas `EN_INTEGRACION` (desde el 2026-09-28, rama `feature/qualitas-cotizador`) · HDI, Zurich `PREPARADA` (sólo carpeta, sin cliente) |
 
 Corte anterior (2026-09-10): 36 cotizaciones, 114 llamadas — antes de la Fase 1 de la plataforma de aseguradoras (ver actualización de abajo).
 
@@ -107,3 +107,19 @@ Actualización 2026-09-24 _(CC)_: se agregan ADR-009 (plataforma de cotizadores 
 Actualización 2026-09-25 _(CC)_: **Fase 1 de ADR-010 cerrada y fusionada a `main`.** Albert confirma ADR-010, arranca la Fase 1 en la rama `feature/plataforma-aseguradoras`: migraciones (columna `aseguradora`, `clave_vehiculo`, `submarca_id`, `datos_aseguradora_json`, tabla `sys_aseguradoras`), `app/plataforma/` (contrato, registro, resultado común, candado de emisión reutilizable) con el adaptador delgado `AseguradoraGnp`, carpetas `Hdi/`/`Qualitas/`/`Zurich/` reservadas (sólo carpeta y README, sin cliente — estado `PREPARADA`), menú y filtro de historial por aseguradora, y convención de prefijos anotada en ADR-003.
 
 Regresión completa antes del merge: `php -l` a todo, pantallas cargadas por HTTP sin llamadas, y 2 cotizaciones reales de control autorizadas por Manu contra producción (cot #28→#41 Cotizador, #39→#42 Juega y Compara) — migraciones aplicadas a la base real sin pérdida de datos (38→40 cotizaciones, las 40 `GNP`), petición XML idéntica byte a byte en ambos pares, evidencia y Comparativo Multi-Plan generados igual que antes. La variación de precio detectada (+8.6% a +10.3% en el par del Cotizador) se descartó como bug de código (mismo XML) y se cerró como tarifa de GNP — decisión de negocio de Albert, ver [ADR-005 punto 12](./03_Decisiones/ADR-005-reglas-verificadas-gnp.md). GNP sigue siendo la única aseguradora `OPERATIVA`; nada del flujo real de GNP cambió de comportamiento.
+
+Actualización 2026-09-28 _(Claude)_: **módulo de Qualitas, sólo cotización**, en la rama `feature/qualitas-cotizador`, subida a `origin` y **sin fusionar a `main`**. El tag `pre-qualitas` marca el punto de partida.
+
+- **Qué incluye:**
+  - cliente SOAP con candado doble (ruta + contenido);
+  - adaptador y guardado en las tablas comunes;
+  - descuento configurable (`sys_descuentos`);
+  - pantallas de captura, resultado y administración de descuentos;
+  - protección contra llamadas repetidas (`sys_solicitudes`);
+  - consideración 40 en el XML.
+- **Estado:** Qualitas pasó a `EN_INTEGRACION`. En QA el precio es igual al de sus PDF, 15 de 15.
+- **Documentación:**
+  - todo el registro y las reglas verificadas con sus `sys_llamadas.id`: [`aseguradoras/qualitas/00-estado.md`](./aseguradoras/qualitas/00-estado.md);
+  - reglas de trabajo nuevas: [`aseguradoras/00-reglas-de-trabajo.md`](./aseguradoras/00-reglas-de-trabajo.md);
+  - ADR-003 (prefijo `ref_` y tablas nuevas), ADR-006 (evidencia de Qualitas) y ADR-010 (riesgo de "mismo método para cotizar y emitir", tablas nuevas y avance), anotados con fecha.
+- **Siguiente:** catálogo de vehículos (datos del portal de Qualitas) y archivo de SEPOMEX para la consideración 40. Lo demás está congelado.

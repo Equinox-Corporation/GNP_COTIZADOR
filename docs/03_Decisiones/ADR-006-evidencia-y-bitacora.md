@@ -57,6 +57,17 @@ Los dos archivos traen nombre, edad, código postal y a veces RFC del cliente. N
 
 Sin bitácora, esas reglas habrían tardado meses en aparecer.
 
+### 7. Otras aseguradoras: la misma regla (Qualitas) `[CONFIRMADO]` _(Claude, 2026-09-28)_
+
+- **Toda llamada a Qualitas queda en `sys_llamadas` con `aseguradora='QUALITAS'`**, también las que fallan antes de llegar (`RED`). Ids 120 a 139 al 2026-09-28.
+- **El servicio de emisión de Qualitas no lleva contraseña.** El de catálogo sí lleva credenciales (`cUsuario`, `cTarifa`); se enmascaran **antes** de escribir, en `QualitasClient::sinCredenciales()`, igual que `<PASSWORD>` en GNP.
+- **Evidencia también como archivo**:
+  - Las llamadas del script de pruebas autorizadas (`llamada_qa.php`) guardan petición y respuesta en `docs/aseguradoras/qualitas/evidencia/`.
+  - Las de la pantalla sólo quedan en `sys_llamadas`; cuando sirven de referencia se exportan a esa carpeta.
+  - Antes de cada commit se revisa que no traigan credenciales ni datos personales.
+- **La descarga de evidencia** (`?r=evidencia`) funciona igual con cotizaciones de Qualitas. Sus etiquetas todavía dicen "GNP": es un servicio de GNP que no se tocó.
+- **Reglas de trabajo** (`docs/aseguradoras/00-reglas-de-trabajo.md`): los valores de `config/.env.local` nunca se imprimen, y toda copia del sistema se verifica sin red antes de levantarla.
+
 ## 🧩 Modelo de datos
 
 ```sql
