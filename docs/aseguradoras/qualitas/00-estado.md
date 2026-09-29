@@ -8,30 +8,52 @@ Sigue faltando el usuario del catálogo (`cUsuario`/`cTarifa`). El negocio 08902
 
 _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando existiera el cliente con su candado de emisión (ADR-010, punto 4) y se hubiera hecho la primera llamada a QA con respuesta real.
 
-## Para retomar: estado del trabajo al 2026-09-28
+## Para retomar: EN PAUSA desde el 2026-09-29
 
-- **Rama** `feature/qualitas-cotizador`, en `origin`. `main` no se ha tocado; el tag `pre-qualitas` también está en `origin`, en el mismo commit que `main`.
-- **Prioridad actual (Albert, 2026-09-28): el catálogo de vehículos y las pruebas con él.** Todo lo demás está congelado, incluida la prueba de A y B en el navegador (protección contra llamadas repetidas).
-- **Esperando a Albert:**
-  1. **Archivo de SEPOMEX** en `Proyectos\Qualitas_Cotizador\SEPOMEX\`. Con él se leen los códigos de municipio y colonia del CP 11590 y se entregan los 2 comandos autorizados, `cotizar-captiva` y `cotizar-captiva-cp40`, seguidos y en la misma sesión.
-  2. **Datos del portal de Qualitas** de los 8 vehículos, en `plantilla_captura_portal.csv`. Con ellos se construye `cat_qua_vehiculos` (diseño aprobado, sección "Etapa 3").
-  3. _(2026-09-29)_ ~~Aprobar el CSV de los 3 vehículos~~ → aprobado e importado. **Albert prueba la cascada en el navegador.**
-  4. _(2026-09-29)_ **Salidas de las 3 llamadas a QA que corre Albert**: `cotizar-captiva`, `cotizar-captiva-cp40 --municipio=016 --colonia=1838` y `cotizar-vento-semestral`.
-     _2026-09-29:_ `cat_qua_vehiculos` ya está construido (vacío). Los datos llegan como **PDF de Operaciones** en `Proyectos\Qualitas_Cotizador\Portal\`: se extraen a CSV, Albert lo revisa y después se importa.
-- **Esperando a Qualitas:** `cUsuario`/`cTarifa` del catálogo (wsTarifa), y la liberación del negocio cuando se valide en QA.
-- **Última llamada registrada de Qualitas:** `sys_llamadas.id` 139. Evidencia en `evidencia/`.
-- **Pruebas sin red, todas en verde:**
+**El proyecto está en pausa hasta que lleguen dos cosas** (Albert, 2026-09-29):
+
+1. **Credenciales del catálogo de Qualitas** (`cUsuario`/`cTarifa` de wsTarifa).
+2. **PDF de cotizaciones del portal que entrega Operaciones**, en `Proyectos\Qualitas_Cotizador\Portal\`.
+
+Mientras tanto no se hace nada. La ruta completa está en `01-ruta-critica.md`.
+
+- **Rama** `feature/qualitas-cotizador`, en `origin`. `main` no se ha tocado, y el tag `pre-qualitas` está en el mismo commit que `main`.
+- **La fusión a `main` está bloqueada** por dos commits de Beto que cambian GNP (`a768fdc`, `0d61171`). No se tocan; lo decide Albert con Beto (`01-ruta-critica.md`, paso 11).
+- **Hecho y cerrado:**
+  - **Catálogo provisional** (`cat_qua_vehiculos`), con cascada en pantalla. En la base real están los 3 vehículos de "Ejemplos Qualitas", con fecha 2026-09-23.
+  - **Extractor de los PDF del portal** a CSV.
+  - **Respaldo automático antes de migrar**, con retención de los últimos 10 (ADR-003, punto 6).
+  - **Consideración 40 confirmada en QA** (regla 18). Se manda siempre.
+  - **Motos en semestral confirmadas** (regla 19). Se descartó el rechazo de formas de pago para motos.
+  - **Postalia descartada**: no trae códigos de SEPOMEX.
+- **Al retomar, en este orden:**
+  1. **`ref_sepomex`** desde `Proyectos\Qualitas_Cotizador\SEPOMEX\sepomex_cp_20260925.csv` (159,331 asentamientos, al 2026-09-25). Ese CSV queda **fuera de git** por la licencia de Correos; ya lo ignora `.gitignore`. Luego, la captura de colonia en la pantalla, para mandar la consideración 40 con los códigos del CP.
+  2. **Con los PDF de Operaciones:**
+     - `extraer_pdf_portal_qualitas.php` genera el CSV;
+     - Albert lo revisa;
+     - se saca respaldo y se corre `importar_portal_qualitas.php --aplicar`;
+     - se cotizan esas AMIS por el servicio, con llamadas autorizadas, y se comparan contra `cat_qua_referencias_portal`.
+  3. **Con las credenciales:** wsTarifa (`listaMarcas`/`listaTarifas`) llena `cat_qua_vehiculos` con fuente `WSTARIFA`. "MO" en la marca corta indica moto y sirve para llenar `tipo_vehiculo`.
+  4. **Pendiente de Albert, sin fecha:** probar la cascada y la protección contra llamadas repetidas (A y B) en el navegador.
+- **Esperando a Qualitas:** `cUsuario`/`cTarifa`, y la liberación del negocio 08902 cuando se valide en QA.
+- **Última llamada registrada de Qualitas:** `sys_llamadas.id` 146. Evidencia en `evidencia/`.
+- **Pruebas sin red, todas en verde (349):**
 
   | Archivo | Pruebas |
   |---|---|
   | `prueba_sin_red.php` | 75 |
   | `prueba_etapa4_sin_red.php` | 130 |
   | `prueba_solicitud_unica_sin_red.php` | 42 |
-  | `prueba_catalogo_sin_red.php` _(2026-09-29)_ | 35 |
-  | `prueba_extractor_pdf_sin_red.php` _(2026-09-29)_ | 41 |
-  | `app/scripts/prueba_respaldo_migracion_sin_red.php` _(2026-09-29, respaldo automático antes de migrar)_ | 17 |
+  | `prueba_catalogo_sin_red.php` | 37 |
+  | `prueba_extractor_pdf_sin_red.php` | 41 |
+  | `app/scripts/prueba_respaldo_migracion_sin_red.php` | 24 |
 
-- **Reglas de trabajo** (`docs/aseguradoras/00-reglas-de-trabajo.md`): el `.env` nunca se imprime, y toda copia se verifica con `app/scripts/verificar_copia_sin_red.php` antes de levantarla.
+- **Reglas de trabajo** (`docs/aseguradoras/00-reglas-de-trabajo.md`):
+  - el `.env` nunca se imprime;
+  - toda copia se verifica con `app/scripts/verificar_copia_sin_red.php` antes de levantarla;
+  - con cambios de `Esquema.php`, primero copia y respaldo; se prueban en una copia, no en la carpeta que sirve XAMPP.
+
+_Antes: "Para retomar" al 2026-09-28. Prioridad: catálogo; se esperaban el archivo de SEPOMEX y los datos del portal de los 8 vehículos. El detalle está en el historial de git de este archivo._
 
 ## Lo que se recibió
 
@@ -445,6 +467,7 @@ Probado así:
 - **Decisión de Albert (2026-09-29):**
   - Aprobados los pasos 1, 2 y 3. **Se construyen sólo si Qualitas rechaza la Vento en semestral.**
   - El paso 4 espera al catálogo.
+- **Resultado (id 146): Qualitas la aceptó** (regla 19). **El rechazo de formas de pago para motos queda descartado** (Albert, 2026-09-29); no se construye nada.
 
 #### Consideración 40 (SEPOMEX): primera parte hecha _(Claude, 2026-09-28)_
 
@@ -899,3 +922,38 @@ Albert cotizó en el navegador (`?r=qualitas`, Apache) la Captiva Amplia (AMIS 2
 - El porcentaje (`Primas/Comision`) es 11 en las cuatro.
 - Qualitas trunca la comisión de cada recibo, así que las sumas quedan unos centavos debajo de la de contado. Es otra razón para no calcularla nunca.
 - **La comisión de cada forma de pago es la suma de lo que devuelve Qualitas en los recibos de esa forma**, no la de contado.
+
+### Llamadas del 2026-09-29 (QA, autorizadas; las corrió Albert)
+
+| id | Qué | Resultado |
+|---|---|---|
+| 144 | `cotizar-captiva`, la llamada de control | `RED`: "Could not resolve host: qa.qualitas.com.mx". **Falla de red local del equipo**, momentánea; **no llegó a Qualitas** y no dice nada del servicio |
+| 145 | `cotizar-captiva-cp40 --municipio=016 --colonia=1838` | OK · `NoCotizacion` 1220086049 |
+| 146 | `cotizar-vento-semestral` | OK · `NoCotizacion` 1220086050 |
+
+La evidencia está en `evidencia/20260929_1459*`. Las peticiones son idénticas a las ya versionadas de las llamadas 127 y 129, salvo las fechas y lo que se probaba: la consideración 40 en la 145 y `FormaPago` S en la 146.
+
+### 18. Qualitas acepta la consideración 40 con los códigos de SEPOMEX `[CONFIRMADO]` (id 145)
+
+- Se mandaron municipio `016` (`c_mnpio`, 3 dígitos, TipoRegla 7) y colonia `1838` (`id_asenta_cpcons`, 4 dígitos, TipoRegla 8), con los ceros a la izquierda y tal como vienen en el archivo de Correos. **Sin error**: `<CodigoError/>` vacío.
+- **Para el CP 11590 el total no cambia:** 10,464.91, igual que en las llamadas 127 y 136. La prima neta (8,440.28), el recargo (-168.81), el derecho (750), el IVA (1,443.44) y el total dan 5 de 5 iguales al PDF. La comisión es 11% en `Primas` y 928.43 en el recibo, igual que en 127 y 136.
+- **Límites:**
+  - La llamada de control del mismo día (144) no salió. La comparación es contra 127 y 136, del día anterior.
+  - El CP 11590 tiene una sola colonia. **No se afirma nada para CP con varias colonias**, donde la colonia podría cambiar la tarifa.
+- **Decisión (Albert, 2026-09-29):**
+  - La consideración 40 **se manda siempre**.
+  - `ref_sepomex`, cargada desde el CSV de Correos que queda fuera de git, es el siguiente paso al retomar.
+
+### 19. Las motos aceptan pago semestral `[CONFIRMADO]` (id 146)
+
+| Vento 2026 (AMIS 68133, 20%) | Contado (id 129) | Semestral (id 146) |
+|---|---|---|
+| Prima neta | 6,234.08 | 6,234.08 |
+| `Recargo` | -124.68 (pronto pago) | +149.62 |
+| Total | 7,956.90 | **8,275.09** (+4.0%) |
+| Recibos | 1 | 2: 4,572.54 + 3,702.55 = 8,275.09, exacto |
+| Comisión | 11% · 685.74 | 11% · 342.87 × 2 = **685.74**, igual que en contado |
+
+- **El PDF de ejemplo sólo mostraba contado por elección de quien cotizó, no por una restricción de Qualitas.**
+- A diferencia de la Captiva (regla 17), aquí la comisión de los dos recibos suma exactamente la de contado: al partirla en dos no se pierde ningún centavo al truncar.
+- **Decisión (Albert, 2026-09-29):** "Ver otras formas de pago" se ofrece igual a las motos. El rechazo de formas de pago para motos **queda descartado**.
