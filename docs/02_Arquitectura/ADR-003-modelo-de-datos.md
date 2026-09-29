@@ -146,6 +146,7 @@ El corazón del asunto es esta cadena:
 | **55.5% del catálogo maestro sin homologar** | 4,316 submarcas que hoy no se pueden cotizar en GNP |
 | **`cat_comercial_diseño.md` está desactualizado** | Dice 110 marcas, 7,941 submarcas y mapeo en NULL. Es lo primero que leería alguien nuevo |
 | **`cat_plantillas`/`cat_plantilla_coberturas` viven en `cotizador_gnp.sqlite`, que "se puede regenerar" — pero ellas no** | Son contenido de negocio, no espejo de GNP. Mitigado por tener script de reproducción (`app/scripts/cargar_plantillas_equinox.php`), a diferencia de `cat_comercial.db` — ver nota del punto 2 |
+| **`Db::todos()`/`uno()`/`valor()`/`ejecutar()` ligan todo parámetro como texto** _(CC, 2026-09-29)_ | `execute($params)` de PDO manda cada valor como cadena. Una columna con afinidad lo convierte y no pasa nada, pero **una expresión sin afinidad** (`COUNT(...)`, `SUM(...)`, aritmética) comparada contra `?` nunca iguala: SQLite trata el entero `1` y el texto `'1'` como distintos. Así, `CatalogoServicio::opcionalesComunes()` (`HAVING COUNT(DISTINCT c.paquete) = ?`) devolvió cero filas desde el primer commit, y "Coberturas opcionales" de `cotizar.php` salió vacío en todos los paquetes. Corregido ahí ligando el conteo con `PDO::PARAM_INT`; hoy no hay otra consulta con ese patrón. Regla: si se compara una expresión contra un parámetro, ligarlo con su tipo. Ver `docs/02.7-plantillas-conectadas.md` |
 
 ## 🛡️ Mitigaciones
 

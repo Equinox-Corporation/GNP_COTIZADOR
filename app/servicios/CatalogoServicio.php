@@ -193,7 +193,11 @@ final class CatalogoServicio
             return [];
         }
         $marcas = implode(',', array_fill(0, count($paquetes), '?'));
-        return Db::todos(
+        // No va por Db::todos(): execute($params) manda todo como texto, y
+        // SQLite no iguala el entero de COUNT(...) con '1' — la consulta
+        // devolvía cero filas para cualquier paquete. El conteo se liga como
+        // entero; el resto de los parámetros, como texto igual que siempre.
+        $st = Db::get()->prepare(
             "SELECT c.cve_cobertura,
                     MAX(c.nombre)    nombre,
                     MAX(c.sa_valor)  sa_valor,
@@ -204,9 +208,15 @@ final class CatalogoServicio
               WHERE c.grupo = ? AND c.tipo = 'OPCIONAL' AND c.paquete IN ({$marcas})
               GROUP BY c.cve_cobertura
              HAVING COUNT(DISTINCT c.paquete) = ?
-              ORDER BY nombre",
-            array_merge([$grupo], $paquetes, [count($paquetes)])
+              ORDER BY nombre"
         );
+        $i = 1;
+        foreach (array_merge([$grupo], $paquetes) as $v) {
+            $st->bindValue($i++, (string) $v, PDO::PARAM_STR);
+        }
+        $st->bindValue($i, count($paquetes), PDO::PARAM_INT);
+        $st->execute();
+        return $st->fetchAll();
     }
 
     /**
