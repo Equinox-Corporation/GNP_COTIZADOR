@@ -18,6 +18,22 @@ El registro completo, las reglas verificadas y las decisiones están en [`00-est
 | 3 | Diseño Postalia + caché (`ref_sepomex`) y qué pasa si no responde | ⏳ Espera el resultado del paso 1 | Propuesta para que decida Albert |
 | 4 | Catálogo provisional `cat_qua_vehiculos` (tabla, importador del CSV, cascada en pantalla, pruebas) | ⏳ Siguiente, mientras Albert prueba Postalia | Claude |
 | 5 | Extracción de los PDF del portal → CSV | ⏳ Siguiente; se prueba con los 3 PDF de "Ejemplos Qualitas" | Claude. Después, Albert deja los PDF de Operaciones en `Proyectos\Qualitas_Cotizador\Portal\` |
+| 11 | **Fusión de `feature/qualitas-cotizador` a `main`** | 🔒 **Bloqueada** | Antes de fusionar hay que decidir qué pasa con los commits de Beto en esta rama (ver abajo) |
+
+## Bloqueante del paso 11: commits de Beto en esta rama _(Albert, 2026-09-29)_
+
+La rama trae dos commits de Beto del 2026-09-29 que **cambian GNP**, no Qualitas. Ya están en `origin`:
+
+| Commit | Qué hace | Archivos |
+|---|---|---|
+| `a768fdc` | refactor(cotizar): quita el selector de plantilla de GNP Cotizador | `app/vistas/cotizar.php`, `public/index.php`, `docs/02.7-plantillas-conectadas.md`, ADR-007 |
+| `0d61171` | fix(catalogo): el menú de coberturas opcionales salía vacío | `app/servicios/CatalogoServicio.php`, `docs/02.7-plantillas-conectadas.md`, ADR-003 |
+
+- **No se tocan**: ni revert ni cherry-pick. Albert lo habla con Beto.
+- **Antes de fusionar a `main` hay que decidir**:
+  - o se quedan en esta rama, y entonces hace falta una **regresión completa de GNP**;
+  - o se mueven a su propia rama.
+- **Mientras tanto, el trabajo de Qualitas evita esos archivos** para no chocar con ellos. El catálogo provisional (paso 4) no agrega rutas a `public/index.php`: los datos los arma `QualitasServicio` y van en la pantalla de Qualitas. Las tablas nuevas se documentan en `00-estado.md` y no en ADR-003. Si algún paso llegara a necesitar esos archivos, Claude se detiene y avisa.
 
 ## Paso 0 — veredicto de la clave de Postalia (2026-09-29)
 

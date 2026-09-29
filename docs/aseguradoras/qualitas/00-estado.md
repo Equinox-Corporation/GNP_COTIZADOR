@@ -516,6 +516,14 @@ En producción cada llamada cuenta. Lo medido antes del cambio, sobre una copia 
 
 **GNP tiene el mismo hueco de reenvío** en su formulario de cotizar. No se midió y no se tocó. Cuando B esté probado en Qualitas, aplicarlo a GNP es una decisión aparte, con su regresión.
 
+## Riesgos conocidos
+
+- **Usuario de GNP y correo interno en el historial de GitHub** _(anotado el 2026-09-29)_.
+  - `config/.env.example` traía los valores reales de `GNP_USUARIO` y `GNP_CORREO_IMPRESION`. Se vaciaron el 2026-09-29 (`b94432a`), pero **siguen en commits anteriores ya publicados** y en 21 archivos de evidencia de GNP (`datos/evidencia_*`, las peticiones XML; la contraseña va enmascarada).
+  - **No se reescribe la historia** (decisión de Albert).
+  - Es un usuario, no una contraseña. **Se mitiga con el cambio de `GNP_PASSWORD`, pendiente de Albert.**
+  - La clave de Postalia **nunca** se publicó: se verificó en todo el repositorio, local y `origin` (`01-ruta-critica.md`, paso 0).
+
 ## Lista para pasar a `OPERATIVA` (ADR-010, punto 12) _(Claude, 2026-09-28)_
 
 | Condición de ADR-010 | Estado | Base |
