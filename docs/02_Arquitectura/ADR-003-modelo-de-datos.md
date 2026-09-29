@@ -74,6 +74,16 @@ sys_llamadas                   56   XML de ida y vuelta de cada llamada
 >
 > Diseñadas y **todavía no creadas**: `cat_qua_vehiculos` (catálogo de vehículos de Qualitas, con `fuente` PORTAL_MANUAL o WSTARIFA) y `ref_sepomex` (códigos postales, municipios y colonias). El detalle está en `docs/aseguradoras/qualitas/00-estado.md`.
 
+> _(Claude, 2026-09-29)_ — **Creadas desde la nota anterior** (sólo agregar; en la base real desde el 2026-09-29):
+>
+> | Tabla | Qué guarda |
+> |---|---|
+> | `cat_qua_vehiculos` | Catálogo de vehículos de Qualitas: AMIS, modelo, marca, línea, versión, `tipo_vehiculo` (vacío hasta que Qualitas confirme qué dato lo dice), `fuente` (`PORTAL_MANUAL` o `WSTARIFA`), `fecha_fuente`, `submarca_id` (opcional, para empatar con el catálogo maestro) y `activo`. Única por AMIS + modelo + fuente. La pantalla prefiere `WSTARIFA`; mientras sólo haya `PORTAL_MANUAL`, avisa que el catálogo es provisional. La carga del portal la hace `app/scripts/importar_portal_qualitas.php` |
+> | `cat_qua_referencias_portal` | Una cotización del portal de Qualitas por fila (AMIS, modelo, uso, paquete, forma de pago, descuento, CP): coberturas con suma, deducible y prima (`coberturas_json`), importes, formas de pago (`formas_pago_json`), número y fecha de la cotización del portal, archivo y fila de origen. **El cotizador no la lee**: es la referencia contra la que se compara lo que devuelve el servicio. Como `cat_plantillas`, es contenido que no se "vuelve a bajar": se reconstruye reimportando los CSV del portal |
+> | `sys_esquema` | Una fila: la huella de `app/core/Esquema.php` que ya se aplicó a esta base, y cuándo. La usa el respaldo automático antes de migrar (punto 6) |
+>
+> `ref_sepomex` sigue sin crearse: se construye después de la prueba de la consideración 40 en QA (Albert, 2026-09-29). Su fuente será el archivo oficial de Correos de México; Postalia quedó descartada porque no trae los códigos (`docs/aseguradoras/qualitas/00-estado.md`).
+
 **Una cotización tiene N resultados.** Es la consecuencia directa de que GNP acepte varios paquetes en una sola llamada: se pide una vez y se guardan todos los planes tarificados, comparables entre sí.
 
 ### 3. El catálogo maestro y su homologación `[CONFIRMADO]`
@@ -111,6 +121,27 @@ Y cada submarca **sin** relación guarda el motivo en `motivo_sin_gnp` y `nota_s
 `CatalogoServicio` y `CotizacionServicio` hoy leen directo de `cat_vehiculos` — el catálogo de GNP. La homologación existe pero está desconectada del flujo.
 
 Es deliberado: se separó para poder terminar la homologación sin arriesgar el cotizador, que ya funciona. **Conectarla es un paso propio y todavía no hecho.**
+
+### 6. Respaldo automático antes de migrar la base de operación `[CONFIRMADO]` _(Albert, 2026-09-29)_
+
+**Por qué:** `Db::get()` corre `Esquema::asegurar()` en cada apertura: un script de consola, una prueba o una pantalla en el navegador. Con un cambio de esquema sin aplicar, la primera apertura migraba la base real sin respaldo. Pasó el 2026-09-29: un script de revisión creó `cat_qua_vehiculos` antes del respaldo acordado. No hubo daño, pero una regla escrita no basta.
+
+**Decisión:**
+
+- Si hay **cambios pendientes** en la base que abre la aplicación, `Esquema::asegurar()` primero la respalda en `datos/cotizador_gnp.sqlite.bak_auto_pre_migracion_AAAAMMDD_HHMMSS`, comprueba el respaldo y **sólo entonces** migra.
+- **Cambios pendientes** quiere decir que `Esquema.php` cambió desde la última vez que se aplicó a esa base. Se compara su huella (sha256, sin importar los saltos de línea) con la guardada en `sys_esquema`. Como la huella vive dentro de la base, una base restaurada de un respaldo viejo también cuenta como pendiente.
+- **El respaldo** se hace con `VACUUM INTO`: es una copia consistente que incluye lo que esté en el WAL. Se comprueba abriéndolo: `quick_check` debe dar `ok`, y debe tener las mismas tablas con el mismo número de filas. Nunca sobrescribe un archivo: si el nombre ya existe (dos migraciones en el mismo segundo), usa `_2`, `_3`…
+- **Si el respaldo falla, no se migra.** Se lanza el error "No se aplicó la migración de la base: falló el respaldo automático (…). La base quedó sin cambios."
+- **Sin cambios pendientes, no hay respaldo.** Las sentencias idempotentes de siempre siguen corriendo en cada apertura, igual que antes. Las semillas incluidas: vuelven a aplicar las correcciones del catálogo de GNP después de una recarga del ETL, y eso no cambió.
+- **Candado**: si dos peticiones encuentran la migración pendiente a la vez, sólo una respalda y migra; la otra espera y vuelve a revisar.
+- **Alcance**: sólo la base que abre `Db::get()`, la de `DB_PATH`. Una copia del sistema respalda su propia copia. Las bases temporales de las pruebas llaman a `Esquema::asegurar($pdo)` sin ruta y no se respaldan.
+- **Probado** en `app/scripts/prueba_respaldo_migracion_sin_red.php`, 17 pruebas sin red: el respaldo se hace antes de migrar, sin cambios no hay respaldo, y si el respaldo falla no se migra. La regresión de pantallas de GNP por HTTP, sobre dos copias verificadas sin red, dio 30 de 30 iguales (`docs/aseguradoras/qualitas/00-estado.md`).
+
+**Lo que no resuelve:**
+
+- No es un respaldo periódico.
+- No cubre `cat_comercial.db`.
+- No borra respaldos viejos: cada cambio de `Esquema.php` deja un archivo de ~18 MB en `datos/`. La retención queda pendiente, junto con la de los `.bak_pre_*` manuales.
 
 ## 🧩 Modelo de datos
 
@@ -170,6 +201,7 @@ El corazón del asunto es esta cadena:
 
 - Conectar `homologacion_gnp` a `CatalogoServicio` y `CotizacionServicio`.
 - Política de respaldo y retención de `cat_comercial.db`.
+- Retención de los respaldos automáticos `datos/*.bak_auto_pre_migracion_*` (punto 6) y de los `.bak_pre_*` manuales de `datos/`. _(Claude, 2026-09-29)_
 - Actualizar `cat_comercial_diseño.md` con los números reales y las rutas correctas.
 - Revisar los 45 casos de confianza 80 y los 18 pares de `gemelas_por_confirmar.csv`.
 

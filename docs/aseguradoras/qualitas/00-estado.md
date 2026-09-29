@@ -15,6 +15,8 @@ _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando exi
 - **Esperando a Albert:**
   1. **Archivo de SEPOMEX** en `Proyectos\Qualitas_Cotizador\SEPOMEX\`. Con él se leen los códigos de municipio y colonia del CP 11590 y se entregan los 2 comandos autorizados, `cotizar-captiva` y `cotizar-captiva-cp40`, seguidos y en la misma sesión.
   2. **Datos del portal de Qualitas** de los 8 vehículos, en `plantilla_captura_portal.csv`. Con ellos se construye `cat_qua_vehiculos` (diseño aprobado, sección "Etapa 3").
+  3. _(2026-09-29)_ **Aprobar el CSV de los 3 vehículos de "Ejemplos Qualitas"** para cargarlos como catálogo provisional y probar la cascada en el navegador.
+  4. _(2026-09-29)_ **Correr `cotizar-vento-semestral`** (1 llamada a QA, autorizada): ¿Qualitas cotiza una moto en semestral?
      _2026-09-29:_ `cat_qua_vehiculos` ya está construido (vacío). Los datos llegan como **PDF de Operaciones** en `Proyectos\Qualitas_Cotizador\Portal\`: se extraen a CSV, Albert lo revisa y después se importa.
 - **Esperando a Qualitas:** `cUsuario`/`cTarifa` del catálogo (wsTarifa), y la liberación del negocio cuando se valide en QA.
 - **Última llamada registrada de Qualitas:** `sys_llamadas.id` 139. Evidencia en `evidencia/`.
@@ -27,6 +29,7 @@ _Antes (hasta el 2026-09-28):_ `PREPARADA`. Pasaba a `EN_INTEGRACION` cuando exi
   | `prueba_solicitud_unica_sin_red.php` | 42 |
   | `prueba_catalogo_sin_red.php` _(2026-09-29)_ | 35 |
   | `prueba_extractor_pdf_sin_red.php` _(2026-09-29)_ | 41 |
+  | `app/scripts/prueba_respaldo_migracion_sin_red.php` _(2026-09-29, respaldo automático antes de migrar)_ | 17 |
 
 - **Reglas de trabajo** (`docs/aseguradoras/00-reglas-de-trabajo.md`): el `.env` nunca se imprime, y toda copia se verifica con `app/scripts/verificar_copia_sin_red.php` antes de levantarla.
 
@@ -354,6 +357,54 @@ Operaciones entrega PDF, no CSV. `app/scripts/extraer_pdf_portal_qualitas.php --
 - **Hallazgos de los PDF**:
   - La Vento (moto) sólo ofrece contado; la Captiva y la NP300 ofrecen además semestral y trimestral. Ninguno trae mensual.
   - La RC por la carga (NP300) sale "AMPARADO" y sin prima en el PDF; el servicio la da en 0.01.
+
+#### Respaldo automático antes de migrar _(decisión de Albert, 2026-09-29; ADR-003, punto 6)_
+
+La causa del incidente de la migración era estructural. `Db::get()` migra en cualquier apertura, incluso al cargar una pantalla. Ahora `Esquema::asegurar()` hace esto:
+
+- Si `Esquema.php` cambió desde la última vez que se aplicó a la base de la aplicación, primero la respalda en `datos/cotizador_gnp.sqlite.bak_auto_pre_migracion_AAAAMMDD_HHMMSS`. La huella de lo aplicado se guarda en `sys_esquema`.
+- Comprueba el respaldo: `quick_check`, y las mismas tablas con las mismas filas. Sólo entonces migra.
+- Si el respaldo falla, no migra y lanza un error claro.
+- Sin cambios pendientes, no respalda.
+
+Probado así:
+
+- `app/scripts/prueba_respaldo_migracion_sin_red.php`: 17 pruebas sin red.
+- Con un cambio forzado (quitar el respaldo), la prueba falla.
+- **Regresión por HTTP sobre dos copias verificadas** con `verificar_copia_sin_red.php` (URL a `127.0.0.1:9`, puerto cerrado). Copia A: el commit anterior; copia B: con el mecanismo. Las dos con la misma copia de la base y usuarios de prueba admin y no admin.
+  - 15 pantallas por usuario, 30 en total: cotizar, las consultas de marcas, líneas y paquetes, historial (también filtrado por GNP), resultado y comparativo de GNP, usuarios, plantillas, armador, juega y compara, Qualitas, resultado de Qualitas y descuentos.
+  - **Las 30 salieron iguales**: mismo código HTTP y mismo contenido, salvo los tokens de sesión. Sin errores en los registros de los servidores y sin llamadas nuevas en `sys_llamadas`.
+  - La copia B hizo **un solo** respaldo, en la primera petición, sin `sys_esquema` (es decir, anterior a la migración). Las otras 29 peticiones no respaldaron.
+- **Base real:** la aplicación en XAMPP sirve este mismo árbol, así que la primera petición después de este cambio saca el primer respaldo automático, porque la base real todavía no tiene `sys_esquema`. Es lo esperado.
+
+#### Postalia: descartada para Qualitas _(Albert, 2026-09-29)_
+
+- **Resultado de la prueba** (la corrió Albert: 1 llamada, CP 11590): HTTP 200, 187 bytes. Devuelve `codigo_postal`, `estado`, `municipio`, `ciudad`, `zona` y `colonias[]` con `nombre` y `tipo`. Para el 11590: Miguel Hidalgo, colonia Anzures (1 colonia). **No trae los códigos de SEPOMEX** que pide la consideración 40.
+- **Evidencia:** `evidencia/20260929_143148_postalia_cp11590_peticion.txt` y `_respuesta.json`. La clave va enmascarada (`Bearer ***`) y la URL base como `<POSTALIA_API_URL>`.
+- **Decisión:** Postalia queda descartada para Qualitas. La fuente de los códigos es el **archivo oficial de Correos de México**, que se cargará en `ref_sepomex`.
+- **Orden:**
+  1. Albert deja el archivo en `Proyectos\Qualitas_Cotizador\SEPOMEX\` (puede venir en .zip).
+  2. Se lee en sólo lectura: nombre, fecha, codificación, filas y campos, y para el 11590 `c_estado`, `c_mnpio` e `id_asenta_cpcons` con su formato exacto.
+  3. Albert corre los 2 comandos autorizados, `cotizar-captiva` y `cotizar-captiva-cp40`.
+  4. **Hasta ver el resultado de esas 2 llamadas no se construyen `ref_sepomex` ni la pantalla.**
+
+#### Catálogo provisional con los 3 vehículos de "Ejemplos Qualitas" _(Albert, 2026-09-29)_
+
+- Albert pidió cargarlos para probar la cascada en el navegador.
+- El CSV sale del extractor, a partir de los 3 PDF, y es igual a las 3 primeras filas de `pruebas/ejemplos/portal_ejemplo.csv`.
+- **Pendiente de su aprobación.** Después: respaldo e `importar_portal_qualitas.php --aplicar` (fuente `PORTAL_MANUAL`).
+
+#### Motos y formas de pago: Vento en semestral _(Albert, 2026-09-29)_
+
+- El PDF de la Vento sólo ofrece contado. Para saber si Qualitas cotiza una moto en semestral se agregó a `llamada_qa.php` el subcomando `cotizar-vento-semestral`.
+- Manda el mismo XML que el ejemplo de la Vento (AMIS 68133, 20%, Amplia). Sólo cambia `FormaPago` a `S`. Se comprobó sin red: es la única línea distinta y pasa el candado por contenido.
+- **La corre Albert** (1 llamada a QA, autorizada).
+- **Hoy, si Qualitas rechaza una forma**, "Ver otras formas de pago" muestra su texto en el aviso ("Semestral: …"). El rechazo no se guarda: el botón sigue ahí y cada clic vuelve a pedir las formas rechazadas, con llamadas nuevas.
+- **Propuesta, si la rechaza** (decide Albert):
+  1. Guardar el rechazo por forma de pago en el resultado (`conceptos_json['formas_pago_rechazadas']`, con el texto de Qualitas y la llamada).
+  2. Mostrarlo en la tabla de formas de pago como "Semestral: Qualitas no la ofrece para este vehículo (texto)".
+  3. No volver a pedir una forma ya rechazada. El botón desaparece cuando no queda ninguna por pedir.
+  4. Cuando `tipo_vehiculo` se llene (wsTarifa) y Qualitas confirme la regla, no ofrecer el botón a motos desde el principio.
 
 #### Consideración 40 (SEPOMEX): primera parte hecha _(Claude, 2026-09-28)_
 

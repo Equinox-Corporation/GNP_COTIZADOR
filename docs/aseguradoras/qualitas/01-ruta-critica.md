@@ -4,20 +4,26 @@ Documento operativo. Se actualiza en cada reporte. Prioridad única: **Qualitas*
 
 El registro completo, las reglas verificadas y las decisiones están en [`00-estado.md`](./00-estado.md). Aquí sólo va el camino a `OPERATIVA` y dónde estamos.
 
-**Última actualización:** 2026-09-29 _(Claude)_. Paro tras los puntos 4 y 5: catálogo provisional y extracción de PDF hechos y probados sin red. Sigue esperando la salida de Postalia (paso 1).
+**Última actualización:** 2026-09-29 _(Claude)_. Paro con el CSV de los 3 ejemplos y el comando de la Vento en semestral entregados. Postalia descartada: la fuente es el archivo de Correos. Respaldo automático antes de migrar, hecho.
 
 ## Orden acordado
 
 0 → 1 (comando para Albert) → 4 y 5 mientras Albert corre la prueba → 2 y 3 con el resultado.
 
+_(2026-09-29, tras el paso 1)_ Postalia no trae códigos → 6 (archivo de Correos) → 2 (las 2 llamadas) → 3 (`ref_sepomex` y pantalla, sólo después de ver el resultado de 2). En paralelo: 7, 8 y 9.
+
 | # | Paso | Estado | Qué falta / quién |
 |---|---|---|---|
 | 0 | `.env.example` sin valores reales | ✅ Hecho (`b94432a`) | — |
-| 1 | Postalia: script de prueba del CP 11590 | ✅ Script listo (`app/scripts/prueba_postalia.php`), probado sin red | **Albert** corre el comando (1 llamada autorizada) |
-| 2 | Consideración 40 en QA | ⏳ Espera el resultado del paso 1 | Si Postalia trae códigos: 2 comandos (`cotizar-captiva` y `cotizar-captiva-cp40`), autorizados, los corre Albert. Si no: archivo de Correos → `ref_sepomex` |
-| 3 | Diseño Postalia + caché (`ref_sepomex`) y qué pasa si no responde | ⏳ Espera el resultado del paso 1 | Propuesta para que decida Albert |
+| 1 | Postalia: script de prueba del CP 11590 | ✅ Corrido por Albert: HTTP 200, **sin códigos de SEPOMEX** (sólo nombres). Evidencia `20260929_143148_postalia_cp11590_*` | — **Postalia descartada para Qualitas** (Albert, 2026-09-29) |
+| 2 | Consideración 40 en QA | ⏳ Espera el archivo de Correos (paso 6) | Con los códigos del 11590: 2 comandos (`cotizar-captiva` y `cotizar-captiva-cp40 --municipio --colonia`), autorizados, los corre **Albert**, seguidos |
+| 3 | `ref_sepomex` y su pantalla | ⏸ **No se construye hasta ver el resultado del paso 2** (Albert, 2026-09-29) | Fuente: archivo oficial de Correos de México, no Postalia. Ya no hace falta decidir qué pasa si Postalia no responde: es un archivo local |
 | 4 | Catálogo provisional `cat_qua_vehiculos` (tabla, importador del CSV, cascada en pantalla, pruebas) | ✅ Hecho, 35 pruebas sin red. Tablas en la base real, **vacías** | Importar los vehículos cuando Albert apruebe el CSV extraído (paso 5) |
 | 5 | Extracción de los PDF del portal → CSV | ✅ Hecho, 41 pruebas: los 3 PDF de ejemplo cuadran con el servicio (ids 127–129) | **Albert** deja los PDF de Operaciones en `Proyectos\Qualitas_Cotizador\Portal\`; Claude extrae el CSV; Albert lo revisa; se importa |
+| 6 | Archivo oficial de SEPOMEX (Correos de México) | ⏳ **Albert** lo deja en `Proyectos\Qualitas_Cotizador\SEPOMEX\` (puede venir en .zip) | Claude lo lee en sólo lectura: nombre, fecha, codificación, filas, campos; para el 11590, `c_estado`, `c_mnpio` e `id_asenta_cpcons` con su formato exacto. _2026-09-29:_ apareció `docs/Auxiliares/CP_CONS.ZIP`, sin versionar. **No es el archivo esperado**: trae programas de DOS (`CP_CONS.EXE`, `SISTEMA3.EXE`, un `.BAT` que borra archivos en `C:\CP_CONS`). Los datos (`CODIGO09.DBF`, `MUNICIPI.DBF`, `ASENTAMI.DBF`…) vienen dentro de un autoextraíble LHa. No se ejecutó nada ni se versiona. Se espera el archivo de texto oficial de Correos |
+| 7 | Respaldo automático antes de migrar (causa del incidente del paso 4) | ✅ Hecho: 17 pruebas sin red; regresión por HTTP en 2 copias verificadas, 30 de 30 pantallas iguales | Anotado en ADR-003 (punto 6) |
+| 8 | Catálogo provisional con los 3 vehículos de "Ejemplos Qualitas" | ⏳ CSV entregado a Albert | **Albert** lo aprueba → respaldo → `importar_portal_qualitas.php --aplicar` → Albert prueba la cascada en el navegador |
+| 9 | Moto en semestral (Vento, AMIS 68133, 20%) | ⏳ Comando `cotizar-vento-semestral` entregado | **Albert** lo corre (1 llamada a QA). Si Qualitas la rechaza: propuesta en `00-estado.md` para "Ver otras formas de pago" |
 | 11 | **Fusión de `feature/qualitas-cotizador` a `main`** | 🔒 **Bloqueada** | Antes de fusionar hay que decidir qué pasa con los commits de Beto en esta rama (ver abajo) |
 
 ## Bloqueante del paso 11: commits de Beto en esta rama _(Albert, 2026-09-29)_
@@ -75,12 +81,14 @@ Verificado sin imprimir valores:
 C:\xampp\php\php.exe app\scripts\prueba_postalia.php --cp=11590 --autorizado
 ```
 
+**Resultado (2026-09-29, lo corrió Albert):** HTTP 200, 187 bytes. Trae `codigo_postal`, `estado`, `municipio`, `ciudad`, `zona` y `colonias[]` con `nombre` y `tipo`. Para el 11590: Miguel Hidalgo, colonia Anzures (1 colonia). **Sin códigos de SEPOMEX.** Evidencia: `evidencia/20260929_143148_postalia_cp11590_peticion.txt` y `_respuesta.json`, con la clave enmascarada. **Decisión de Albert: Postalia queda descartada para Qualitas; la fuente es el archivo oficial de Correos de México, en `ref_sepomex`** (pasos 6, 2 y 3).
+
 ## Hacia `OPERATIVA`
 
 La lista completa está en `00-estado.md`, "Lista para pasar a `OPERATIVA`". Los bloqueantes de hoy:
 
 1. Catálogo de vehículos: provisional (portal) construido, falta cargar los vehículos de Operaciones; wsTarifa (`cUsuario`/`cTarifa` de Qualitas) para operar.
-2. Consideración 40 (municipio y colonia): pasos 1 a 3.
+2. Consideración 40 (municipio y colonia): pasos 6, 2 y 3 (Postalia descartada).
 3. Descripción del vehículo para el cliente: llega con el catálogo.
 4. Liberación del negocio 08902 por Qualitas, después de validar en QA.
 5. Cotización de control en producción, con autorización.

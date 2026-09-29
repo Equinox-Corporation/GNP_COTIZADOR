@@ -1,0 +1,5 @@
+GET <POSTALIA_API_URL>/codigos-postales/11590
+Authorization: Bearer ***
+Accept: application/json
+
+HTTP 200 · 1028 ms
