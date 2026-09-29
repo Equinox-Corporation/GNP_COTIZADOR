@@ -376,7 +376,7 @@ Probado así:
   - **Las 30 salieron iguales**: mismo código HTTP y mismo contenido, salvo los tokens de sesión. Sin errores en los registros de los servidores y sin llamadas nuevas en `sys_llamadas`.
   - La copia B hizo **un solo** respaldo, en la primera petición, sin `sys_esquema` (es decir, anterior a la migración). Las otras 29 peticiones no respaldaron.
 - **Base real:** la aplicación en XAMPP sirve este mismo árbol, así que la primera petición después de este cambio saca el primer respaldo automático, porque la base real todavía no tiene `sys_esquema`. Es lo esperado.
-  - _Confirmado:_ el primer respaldo automático de la base real lo hizo una petición de la aplicación: `datos/cotizador_gnp.sqlite.bak_auto_pre_migracion_20260929_145917`.
+  - _Confirmado:_ el primer respaldo automático de la base real, `datos/cotizador_gnp.sqlite.bak_auto_pre_migracion_20260929_145917`, lo hizo la primera apertura de la base después del cambio: la corrida de `llamada_qa.php` de Albert (`sys_llamadas` 144, a las 14:59:17). Antes de esa llamada se respaldó y migró; la llamada siguió normal.
 - **Retención** _(Albert, 2026-09-29; `6256c5b`)_:
   - se conservan los 10 respaldos automáticos más recientes de cada base; los más viejos se borran;
   - sólo los de ese patrón exacto, nunca otros `.bak`;
